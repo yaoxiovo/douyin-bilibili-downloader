@@ -53,6 +53,7 @@ const stream = await pickStream(info);          // {url,totalBytes,quality,heade
 - 抖音：短链/长链/纯ID/带emoji整段文案，5+ 个真实视频，1080p 无水印（抽帧 AI 视觉验证）
 - B站：BV/av/b23.tv、单P 与多P（GEN vs IG P2），720p MP4 完整
 - 网页版：解析/分P切换/下载代理/封面代理（HEIC→自动嗅探类型）/死链报错/SSRF 拦截
+- Workers 版：本地直跑 handler 冒烟 9/9（页面/双平台解析/MP4 流转发/封面嗅探/SSRF/token 鉴权/坏 key）
 - 抖音图集：代码分支已实现（note/slides/gallery 链接均识别），但公开渠道找到的图文短链均已失效，未跑通活的样本——遇到图集如异常请反馈
 
 ## 限制与约定
@@ -60,6 +61,21 @@ const stream = await pickStream(info);          // {url,totalBytes,quality,heade
 - B站免登录上限 720p；部分番剧/课程不开放免登录流
 - 私密、已删除作品无法获取
 - **仅个人学习备份，尊重原作者版权，勿批量、勿商用**
+
+## 部署到 Cloudflare Workers（随时随地可用）
+
+网页版依赖服务端伪造 `User-Agent`/`Referer` 和绕过 CORS，纯静态托管（GitHub Pages 等）不可行；`worker/` 目录是移植好的 **单文件 Cloudflare Worker 版**（解析层 + 三个 API + 页面全内嵌）。
+
+**零命令行部署（推荐）**：
+
+1. Cloudflare Dashboard → Workers & Pages → Create → Worker（随意命名）→ Deploy 后点 **Edit code**
+2. 把 [`worker/index.js`](./worker/index.js) 的全部内容粘贴进去覆盖 → Deploy
+3. Settings → Variables → 添加 `ACCESS_TOKEN` = 你的口令（不设则任何人可用，强烈建议设）
+4. 打开 `https://你的名字.workers.dev`，右上角填口令即可使用
+
+**命令行部署**：`cd worker && wrangler deploy`（先 `wrangler secret put ACCESS_TOKEN`）
+
+与本地版差异：Worker 出口是 Cloudflare 边缘 IP，若抖音对特定区域有限制可能解析失败（B站不受影响）；内存缓存按实例隔离，多实例下偶发“缓存过期”重解析即可。
 
 ## License
 

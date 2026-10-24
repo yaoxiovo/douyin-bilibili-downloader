@@ -1,0 +1,8 @@
+name = "media-dl"
+main = "index.js"
+compatibility_date = "2025-01-01"
+
+# 访问口令（二选一）：
+#   命令行：wrangler secret put ACCESS_TOKEN
+#   面板：  Worker → Settings → Variables → Add → 名称 ACCESS_TOKEN，值自定
+# 不设置则任何人可用你的 Worker，强烈建议设置。
