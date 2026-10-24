@@ -53,7 +53,7 @@ const stream = await pickStream(info);          // {url,totalBytes,quality,heade
 - 抖音：短链/长链/纯ID/带emoji整段文案，5+ 个真实视频，1080p 无水印（抽帧 AI 视觉验证）
 - B站：BV/av/b23.tv、单P 与多P（GEN vs IG P2），720p MP4 完整
 - 网页版：解析/分P切换/下载代理/封面代理（HEIC→自动嗅探类型）/死链报错/SSRF 拦截
-- Workers 版：本地直跑 handler 冒烟 9/9（页面/双平台解析/MP4 流转发/封面嗅探/SSRF/token 鉴权/坏 key）
+- Workers 版：本地直跑 handler 冒烟 10/10（页面+内嵌JS语法解析/双平台解析/MP4 流转发/封面嗅探/SSRF/token 鉴权/坏 key），远端文件与本地字节级一致
 - 抖音图集：代码分支已实现（note/slides/gallery 链接均识别），但公开渠道找到的图文短链均已失效，未跑通活的样本——遇到图集如异常请反馈
 
 ## 限制与约定
@@ -64,7 +64,7 @@ const stream = await pickStream(info);          // {url,totalBytes,quality,heade
 
 ## 部署到 Cloudflare Workers（随时随地可用）
 
-网页版依赖服务端伪造 `User-Agent`/`Referer` 和绕过 CORS，纯静态托管（GitHub Pages 等）不可行；`worker/` 目录是移植好的 **单文件 Cloudflare Worker 版**（解析层 + 三个 API + 页面全内嵌）。
+网页版依赖服务端伪造 `User-Agent`/`Referer` 和绕过 CORS，纯静态托管（GitHub Pages 等）不可行；`worker/` 目录是移植好的 **单文件 Cloudflare Worker 版**（解析层 + 三个 API + 页面全内嵌，本地 `node worker/test.js` 冒烟 10/10 通过）。
 
 **零命令行部署（推荐）**：
 
