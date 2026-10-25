@@ -24,6 +24,12 @@ const DY_FEED_PARAMS = 'version_code=8.8.0&app_name=aweme&channel=App%20Store&de
 const DY_RATIOS = ['1080p', '720p', '540p'];
 const BILI_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const BILI_HEADERS = { 'user-agent': BILI_UA, referer: 'https://www.bilibili.com/' };
+const BILI_HOSTS = ['https://api.biliapi.net', 'https://api.bilibili.com'];
+
+function genBuvid3() {
+  const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+  return `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}infoc`;
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const jitter = () => sleep(500 + Math.random() * 700);
@@ -190,10 +196,32 @@ async function biliNormalize(input) {
 
 async function biliView({ bvid, aid }) {
   const q = bvid ? 'bvid=' + bvid : 'aid=' + aid;
-  const res = await fetch('https://api.bilibili.com/x/web-interface/view?' + q, { headers: BILI_HEADERS });
-  const j = await res.json();
-  if (j.code !== 0) throw new Error('B站 view 接口：' + (j.message || j.code));
-  return j.data;
+  const headers = {
+    ...BILI_HEADERS,
+    cookie: 'buvid3=' + genBuvid3() + '; b_nut=' + Math.floor(Date.now() / 1000) + ';',
+  };
+  const errs = [];
+  for (const host of BILI_HOSTS) {
+    try {
+      const res = await fetch(host + '/x/web-interface/view?' + q, { headers });
+      const text = await res.text();
+      if (!res.ok) {
+        if (res.status === 412) {
+          throw new Error('B站拦截了 Cloudflare 海外边缘机房 IP (HTTP 412)。抖音正常可用，B站请使用安卓 APK 或本地 Node 版解析下载');
+        }
+        errs.push(`${host} HTTP ${res.status}`);
+        continue;
+      }
+      const j = JSON.parse(text);
+      if (j.code === 0 && j.data) return j.data;
+      errs.push(`${host} code ${j.code}`);
+    } catch (e) {
+      if (e.message.includes('412')) throw e;
+      errs.push(`${host} err ${e.message}`);
+    }
+  }
+
+  throw new Error('B站作品信息获取失败: ' + errs.join('; '));
 }
 
 async function resolveBilibili(input) {
@@ -219,22 +247,36 @@ async function resolveBilibili(input) {
 
 async function biliPickStream(info) {
   const { bvid, cid } = info.bili;
-  const pu = 'https://api.bilibili.com/x/player/playurl?bvid=' + bvid + '&cid=' + cid + '&qn=80&fnval=1&platform=html5&high_quality=1';
-  const res = await fetch(pu, { headers: BILI_HEADERS });
-  const j = await res.json();
-  if (j.code !== 0) throw new Error('B站 playurl 接口：' + (j.message || j.code));
-  const durl = j.data.durl || [];
-  if (!durl.length) throw new Error('B站未返回可下载地址（免登录上限 720p，部分番剧/课程不开放）');
-  const seg = durl[0];
-  const urls = [seg.url, ...(seg.backup_url || [])];
-  return {
-    url: urls[0],
-    totalBytes: seg.size || 0,
-    quality: j.data.quality >= 64 ? '720p' : String(j.data.quality),
-    headers: BILI_HEADERS,
-    backupUrls: urls.slice(1),
-    multiSegment: durl.length > 1 ? durl.length : 0,
+  const headers = {
+    ...BILI_HEADERS,
+    cookie: 'buvid3=' + genBuvid3() + '; b_nut=' + Math.floor(Date.now() / 1000) + ';',
   };
+  let lastErr;
+  for (const host of BILI_HOSTS) {
+    try {
+      const pu = host + '/x/player/playurl?bvid=' + bvid + '&cid=' + cid + '&qn=80&fnval=1&platform=html5&high_quality=1';
+      const res = await fetch(pu, { headers });
+      if (!res.ok) continue;
+      const text = await res.text();
+      const j = JSON.parse(text);
+      if (j.code !== 0) throw new Error('B站 playurl 接口: ' + (j.message || j.code));
+      const durl = j.data.durl || [];
+      if (!durl.length) throw new Error('B站未返回可下载地址（免登录上限 720p，部分番剧/课程不开放）');
+      const seg = durl[0];
+      const urls = [seg.url, ...(seg.backup_url || [])];
+      return {
+        url: urls[0],
+        totalBytes: seg.size || 0,
+        quality: j.data.quality >= 64 ? '720p' : String(j.data.quality),
+        headers: headers,
+        backupUrls: urls.slice(1),
+        multiSegment: durl.length > 1 ? durl.length : 0,
+      };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw new Error('B站流获取失败: ' + (lastErr ? lastErr.message : '未知错误'));
 }
 
 async function resolve(input) {
