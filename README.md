@@ -1,6 +1,37 @@
 # 快捷爬取 · 抖音 / B站 源视频下载工具
 
-零依赖（Node ≥ 18），三个文件三种用法：**命令行**、**网页版**、**代码库**。
+[![Build & Release Android APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/build-apk.yml/badge.svg)](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/build-apk.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/yaoxiovo/douyin-bilibili-downloader?color=blue&label=APK%20Release)](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
+零依赖（Node ≥ 18），支持多种使用方式：**📱 Android 安卓 App**、**网页版**、**命令行**、**代码库**、**Cloudflare Workers 边缘函数**。
+
+---
+
+## 📱 Android 安卓 App 版（手机原生开箱即用）
+
+专为手机端打造的原生 APK 应用，采用 **原生 Java + OkHttp 引擎 + 现代 Android WebKit 混合架构**，无需依赖电脑或远程服务器，在手机上即可脱机独立运行！
+
+### 核心特性
+- **⚡ 脱机纯本地运行**：内置移动端原生的解析引擎与 OkHttp 高速下载栈，无需电脑搭建 Node.js 环境，随时随地打开手机即下。
+- **📋 智能剪贴板侦测**：启动或切回 App 时自动识别剪贴板中的抖音/B站分享文案（自动正则提取有效链接），告别手动反复粘贴。
+- **🎬 无水印原画直下**：
+  - **抖音**：移植 iOS App Feed 接口阶梯体积探测技术，直接获取 1080p App 播放流（天然无水印），支持视频与图文图集。
+  - **B站**：支持 BV号 / av号 / b23.tv / 分P 链接，免登录 720p 原画 MP4 直链高速解析，提供清晰的分P 选集切换。
+- **🖼️ 现代 Scoped Storage（直存系统相册）**：适配 Android 10 ~ 14 现代存储规范，下载完毕自动通过 Android `MediaStore` 登记入库，视频/图片直接显示在系统相册（DCIM/Camera）与下载目录，即刻分享至社交软件。
+- **📊 实时下载进度与通知**：原生下载进度监听，通知栏实时显示进度，支持后台稳定传输。
+
+### 下载与安装
+1. **正式版 Release 下载**：前往 [Releases 页面](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases) 下载最新签名的 `douyin-bilibili-downloader.apk`。
+2. **CI 自动化预览版**：由 GitHub Actions 流水线自动化构建，进入 [Actions 页面](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions) 选择最近的流水线即可在 Artifacts 中下载测试包。
+3. **本地源码编译**：
+   ```bash
+   cd android
+   ./gradlew assembleDebug
+   # 输出 APK 路径：android/app/build/outputs/apk/debug/app-debug.apk
+   ```
+
+---
 
 ## 网页版（推荐）
 

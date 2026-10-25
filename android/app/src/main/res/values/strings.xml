@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">快捷爬取</string>
+    <string name="app_subtitle">抖音 / B站 视频无水印下载器</string>
+    <string name="permission_storage_rationale">需要存储权限以保存下载的音视频与图片文件到本地相册与下载目录。</string>
+    <string name="download_started">开始下载…</string>
+    <string name="download_completed">下载完成并已保存至相册/下载目录</string>
+    <string name="download_failed">下载失败: %1$s</string>
+    <string name="file_not_found">文件不存在或已被删除</string>
+    <string name="network_error">网络异常，请检查网络连接</string>
+</resources>

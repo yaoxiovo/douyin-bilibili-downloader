@@ -1,0 +1,87 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: |
+          cd android
+          chmod +x ./gradlew
+
+      - name: Build APK with Gradle
+        run: |
+          cd android
+          ./gradlew assembleDebug assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
+
+      - name: Prepare APK for Release & Artifacts
+        run: |
+          # 寻找生成的 APK 并复制为标准命名
+          mkdir -p output_apks
+          if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk douyin-bilibili-downloader.apk
+            cp android/app/build/outputs/apk/release/app-release.apk output_apks/douyin-bilibili-downloader-release.apk
+          elif [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk douyin-bilibili-downloader.apk
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk output_apks/douyin-bilibili-downloader-release-unsigned.apk
+          fi
+          
+          if [ -f "android/app/build/outputs/apk/debug/app-debug.apk" ]; then
+            if [ ! -f "douyin-bilibili-downloader.apk" ]; then
+              cp android/app/build/outputs/apk/debug/app-debug.apk douyin-bilibili-downloader.apk
+            fi
+            cp android/app/build/outputs/apk/debug/app-debug.apk output_apks/douyin-bilibili-downloader-debug.apk
+          fi
+          
+          ls -lh douyin-bilibili-downloader.apk || true
+          ls -lh output_apks/ || true
+
+      - name: Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: douyin-bilibili-downloader-apk
+          path: |
+            douyin-bilibili-downloader.apk
+            output_apks/*.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          files: |
+            douyin-bilibili-downloader.apk
+            output_apks/*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

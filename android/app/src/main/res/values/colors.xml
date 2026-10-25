@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme palette matching Web UI -->
+    <color name="bg_dark">#0F1115</color>
+    <color name="card_dark">#171A21</color>
+    <color name="card_dark_secondary">#1D212B</color>
+    <color name="border_line">#2A2F3C</color>
+    
+    <!-- Text colors -->
+    <color name="text_primary">#E8EAF0</color>
+    <color name="text_secondary">#9AA3B5</color>
+    <color name="text_tertiary">#656D7F</color>
+    
+    <!-- Accent gradients & brand colors -->
+    <color name="accent_blue">#4F8CFF</color>
+    <color name="accent_purple">#7C5CFF</color>
+    <color name="status_success">#3ECF8E</color>
+    <color name="status_error">#FF7B72</color>
+    
+    <!-- Platform tags -->
+    <color name="brand_douyin">#FE2C55</color>
+    <color name="brand_bilibili">#00A1D6</color>
+    
+    <!-- Standard android theme references -->
+    <color name="colorPrimary">#4F8CFF</color>
+    <color name="colorPrimaryDark">#0F1115</color>
+    <color name="colorAccent">#7C5CFF</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+    <color name="transparent">#00000000</color>
+</resources>

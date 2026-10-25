@@ -1,0 +1,201 @@
+{
+  "timestamp": "2026-10-25T02:41:20Z",
+  "agent": "QA & Release Pipeline",
+  "status": "SUCCESS",
+  "summary": {
+    "xml_count": 12,
+    "java_count": 12,
+    "gradle_count": 6,
+    "total_errors": 0
+  },
+  "details": {
+    "xml_files": [
+      {
+        "file": "android/app/src/main/AndroidManifest.xml",
+        "root_tag": "manifest",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/drawable/ic_launcher_background.xml",
+        "root_tag": "vector",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/drawable/ic_launcher_foreground.xml",
+        "root_tag": "vector",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/layout/activity_main.xml",
+        "root_tag": "FrameLayout",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+        "root_tag": "adaptive-icon",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+        "root_tag": "adaptive-icon",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/mipmap/ic_launcher.xml",
+        "root_tag": "adaptive-icon",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/mipmap/ic_launcher_round.xml",
+        "root_tag": "adaptive-icon",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/values/colors.xml",
+        "root_tag": "resources",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/values/strings.xml",
+        "root_tag": "resources",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/values/themes.xml",
+        "root_tag": "resources",
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/res/xml/file_paths.xml",
+        "root_tag": "paths",
+        "status": "PASS"
+      }
+    ],
+    "java_files": [
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/MainActivity.java",
+        "class_name": "MainActivity",
+        "package": "com.yaoxiovo.downloader",
+        "lines": 250,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/bridge/AndroidBridge.java",
+        "class_name": "AndroidBridge",
+        "package": "com.yaoxiovo.downloader.bridge",
+        "lines": 341,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/bridge/AndroidBridgeInterface.java",
+        "class_name": "AndroidBridgeInterface",
+        "package": "com.yaoxiovo.downloader.bridge",
+        "lines": 108,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/downloader/Downloader.java",
+        "class_name": "Downloader",
+        "package": "com.yaoxiovo.downloader.downloader",
+        "lines": 449,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/model/BridgeResponse.java",
+        "class_name": "BridgeResponse",
+        "package": "com.yaoxiovo.downloader.model",
+        "lines": 68,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/model/DownloadProgress.java",
+        "class_name": "DownloadProgress",
+        "package": "com.yaoxiovo.downloader.model",
+        "lines": 105,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/model/DownloadRequest.java",
+        "class_name": "DownloadRequest",
+        "package": "com.yaoxiovo.downloader.model",
+        "lines": 102,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/model/MediaInfo.java",
+        "class_name": "MediaInfo",
+        "package": "com.yaoxiovo.downloader.model",
+        "lines": 97,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/parser/BilibiliResolver.java",
+        "class_name": "BilibiliResolver",
+        "package": "com.yaoxiovo.downloader.parser",
+        "lines": 318,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/parser/DouyinResolver.java",
+        "class_name": "DouyinResolver",
+        "package": "com.yaoxiovo.downloader.parser",
+        "lines": 421,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/parser/MediaResolver.java",
+        "class_name": "MediaResolver",
+        "package": "com.yaoxiovo.downloader.parser",
+        "lines": 35,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/src/main/java/com/yaoxiovo/downloader/util/HttpUtil.java",
+        "class_name": "HttpUtil",
+        "package": "com.yaoxiovo.downloader.util",
+        "lines": 92,
+        "status": "PASS"
+      }
+    ],
+    "gradle_files": [
+      {
+        "file": "android/build.gradle",
+        "size_bytes": 242,
+        "status": "PASS"
+      },
+      {
+        "file": "android/app/build.gradle",
+        "size_bytes": 1460,
+        "status": "PASS"
+      },
+      {
+        "file": "android/settings.gradle",
+        "size_bytes": 342,
+        "status": "PASS"
+      },
+      {
+        "file": "android/gradle.properties",
+        "size_bytes": 141,
+        "status": "PASS"
+      },
+      {
+        "file": "android/gradle/wrapper/gradle-wrapper.properties",
+        "size_bytes": 250,
+        "status": "PASS"
+      },
+      {
+        "file": "android/gradle/wrapper/gradle-wrapper.jar",
+        "size_bytes": 43462,
+        "status": "PASS"
+      }
+    ],
+    "workflow_files": [
+      {
+        "file": ".github/workflows/build-apk.yml",
+        "lines": 87,
+        "status": "PASS"
+      }
+    ]
+  },
+  "errors": []
+}
