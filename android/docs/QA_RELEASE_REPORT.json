@@ -76,7 +76,7 @@
         "file": "android/app/src/main/java/com/yaoxiovo/downloader/MainActivity.java",
         "class_name": "MainActivity",
         "package": "com.yaoxiovo.downloader",
-        "lines": 250,
+        "lines": 259,
         "status": "PASS"
       },
       {
@@ -192,7 +192,7 @@
     "workflow_files": [
       {
         "file": ".github/workflows/build-apk.yml",
-        "lines": 87,
+        "lines": 92,
         "status": "PASS"
       }
     ]

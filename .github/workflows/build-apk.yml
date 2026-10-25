@@ -28,18 +28,23 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK Environment
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          if command -v sdkmanager >/dev/null 2>&1; then
+            yes | sdkmanager --licenses || true
+          elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          fi
 
       - name: Grant execute permission for gradlew
         run: |
-          cd android
-          chmod +x ./gradlew
+          chmod +x android/gradlew
 
       - name: Build APK with Gradle
         run: |
           cd android
-          ./gradlew assembleDebug assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleRelease assembleDebug --stacktrace || ./gradlew assembleDebug --stacktrace
 
       - name: Prepare APK for Release & Artifacts
         run: |
