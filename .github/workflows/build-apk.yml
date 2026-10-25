@@ -44,7 +44,11 @@ jobs:
       - name: Build APK with Gradle
         run: |
           cd android
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee /tmp/gradle_debug.log || {
+            echo "::error::Gradle assembleDebug failed"
+            tail -n 120 /tmp/gradle_debug.log
+            exit 1
+          }
           ./gradlew assembleRelease --stacktrace || true
 
       - name: Prepare APK for Release & Artifacts
