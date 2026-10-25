@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
 <title>快捷爬取 · 抖音 / B站</title>
 <style>
   :root {
@@ -16,12 +17,26 @@
     color: var(--tx); font: 15px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
     min-height: 100vh; display: flex; flex-direction: column; align-items: center;
   }
-  header { margin: 42px 16px 10px; text-align: center; }
+  header { margin: 36px 16px 10px; text-align: center; }
   header h1 { font-size: 26px; letter-spacing: 1px; }
   header h1 .g { background: linear-gradient(90deg, var(--acc), var(--acc2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   header p { color: var(--tx2); margin-top: 6px; font-size: 13px; }
   main { width: min(720px, 94vw); }
-  .search { display: flex; gap: 10px; margin: 22px 0 8px; }
+  .clip-banner {
+    display: none; background: rgba(79, 140, 255, 0.12); border: 1px solid var(--acc);
+    border-radius: 12px; padding: 10px 14px; margin: 16px 0 0;
+    align-items: center; justify-content: space-between; gap: 8px; font-size: 13px;
+  }
+  .clip-content { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .clip-btn {
+    background: linear-gradient(90deg, var(--acc), var(--acc2)); color: #fff; border: 0; border-radius: 8px;
+    padding: 5px 14px; font-size: 12.5px; cursor: pointer; font-weight: 600; flex-shrink: 0;
+  }
+  .clip-close {
+    background: transparent; color: var(--tx2); border: 0; font-size: 16px;
+    cursor: pointer; padding: 0 4px; line-height: 1;
+  }
+  .search { display: flex; gap: 10px; margin: 18px 0 8px; }
   .search input {
     flex: 1; background: var(--card); border: 1px solid var(--line); color: var(--tx);
     border-radius: 12px; padding: 13px 16px; font-size: 15px; outline: none; transition: border .15s;
@@ -72,6 +87,10 @@
   .parts button.on { color: #fff; border-color: var(--acc); background: #22304d; }
   .gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 12px; }
   .gal img { width: 100%; height: 96px; object-fit: cover; border-radius: 8px; background: var(--card2); }
+  .progress-wrap { margin-top: 14px; width: 100%; display: none; }
+  .progress-bar-bg { background: var(--card2); border-radius: 999px; height: 8px; overflow: hidden; border: 1px solid var(--line); }
+  .progress-bar-fill { background: linear-gradient(90deg, var(--acc), var(--ok)); height: 100%; width: 0%; transition: width 0.15s ease-out; }
+  .progress-text { display: flex; justify-content: space-between; font-size: 12px; color: var(--tx2); margin-top: 5px; }
   footer { margin: auto 0 26px; color: var(--tx2); font-size: 12px; text-align: center; }
   .spin { display: inline-block; width: 13px; height: 13px; border: 2px solid var(--tx2); border-top-color: transparent; border-radius: 50%; animation: r 0.8s linear infinite; vertical-align: -2px; margin-right: 7px; }
   @keyframes r { to { transform: rotate(360deg); } }
@@ -84,6 +103,12 @@
 </header>
 
 <main>
+  <div class="clip-banner" id="clip-banner">
+    <div class="clip-content">📋 剪贴板检测：<span id="clip-text"></span></div>
+    <button class="clip-btn" id="clip-go">一键解析</button>
+    <button class="clip-close" id="clip-close">✕</button>
+  </div>
+
   <div class="search">
     <input id="q" placeholder="粘贴抖音分享文案 / v.douyin.com 短链 / B站 BV·av·b23.tv 链接，回车解析" autofocus>
     <button id="go">解析</button>
@@ -94,17 +119,33 @@
   <div id="result"></div>
 </main>
 
-<footer>本地服务 127.0.0.1 · 解析与下载均经本机中转，不经过第三方服务器</footer>
+<footer id="footer-text">本地服务 127.0.0.1 · 解析与下载均经本机中转，不经过第三方服务器</footer>
 
 <script>
 const $ = (s) => document.querySelector(s);
 const input = $('#q'), go = $('#go'), status = $('#status'), result = $('#result');
+const clipBanner = $('#clip-banner'), clipText = $('#clip-text'), clipGo = $('#clip-go'), clipClose = $('#clip-close');
+const footerText = $('#footer-text');
+
+const hasNativeBridge = typeof window.AndroidBridge !== 'undefined';
+if (hasNativeBridge) {
+  footerText.textContent = '⚡ Android 原生引擎已就绪 · 本地解析无中转 · 极速媒体入库';
+}
+
 let curKey = null;
+let curMediaInfo = null;
+let curStreamInfo = null;
 
 const fmtMB = (n) => n >= 1048576 ? (n / 1048576).toFixed(2) + ' MB' : Math.ceil(n / 1024) + ' KB';
 const fmtDur = (ms) => { const s = Math.round(ms / 1000); return (s >= 60 ? Math.floor(s / 60) + '分' : '') + (s % 60) + '秒'; };
+const fmtSpeed = (bytes) => (bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB/s' : Math.round(bytes / 1024) + ' KB/s');
 
 function setStatus(html, err) { status.className = 'status' + (err ? ' err' : ''); status.innerHTML = html; }
+
+function proxyCover(u) {
+  if (!u) return '';
+  return hasNativeBridge ? u : ('/api/proxy?u=' + encodeURIComponent(u));
+}
 
 function loadHist() {
   try {
@@ -119,6 +160,7 @@ function loadHist() {
     }
   } catch (_) {}
 }
+
 function pushHist(t) {
   try {
     const h = JSON.parse(localStorage.getItem('dl_hist') || '[]');
@@ -130,50 +172,111 @@ async function run() {
   const v = input.value.trim();
   if (!v) return;
   go.disabled = true; result.innerHTML = '';
-  setStatus('<span class="spin"></span>解析中…（抖音画质探测约需几秒）');
-  try {
-    const r = await fetch('/api/info', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url: v }),
-    });
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.error || '解析失败');
-    render(j);
-    pushHist(v);
-    setStatus('');
-  } catch (e) {
-    setStatus('✗ ' + e.message, true);
-  } finally { go.disabled = false; }
+  setStatus('<span class="spin"></span>解析中…（画质探测约需几秒）');
+
+  if (hasNativeBridge) {
+    // ---- Android Native Bridge Execution Mode ----
+    try {
+      await new Promise((resolve, reject) => {
+        window.onResolveSuccess = (bridgeRes) => {
+          const info = bridgeRes.data || bridgeRes;
+          const stream = info.stream || null;
+          render({ ok: true, info, stream });
+          pushHist(v);
+          setStatus('');
+          resolve();
+        };
+
+        window.onResolveError = (errRes) => {
+          const msg = (errRes && (errRes.msg || errRes.error)) || (typeof errRes === 'string' ? errRes : '解析失败');
+          setStatus('✗ ' + msg, true);
+          reject(new Error(msg));
+        };
+
+        window.AndroidBridge.resolve(v);
+      });
+    } catch (e) {
+      // Handled in reject
+    } finally {
+      go.disabled = false;
+    }
+  } else {
+    // ---- Node.js Web HTTP Server Execution Mode ----
+    try {
+      const r = await fetch('/api/info', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: v }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || '解析失败');
+      render(j);
+      pushHist(v);
+      setStatus('');
+    } catch (e) {
+      setStatus('✗ ' + e.message, true);
+    } finally {
+      go.disabled = false;
+    }
+  }
 }
 
 function render(j) {
-  curKey = j.key;
-  const { info, stream } = j;
+  curKey = j.key || null;
+  const info = j.info || j.data;
+  const stream = j.stream || (info && info.stream);
+  curMediaInfo = info;
+  curStreamInfo = stream;
+
   const isDy = info.platform === 'douyin';
   result.innerHTML = `
     <div class="card">
-      ${info.cover ? `<img class="cover" src="/api/proxy?u=${encodeURIComponent(info.cover)}" alt="封面">` : ''}
+      ${info.cover ? `<img class="cover" src="${proxyCover(info.cover)}" alt="封面">` : ''}
       <div class="body">
         <div><span class="badge ${isDy ? 'dy' : 'bl'}">${isDy ? '抖音' : 'B站'}</span>${info.type === 'images' ? '<span class="badge" style="background:#5c6370">图集 ' + info.imagesCount + ' 张</span>' : ''}</div>
         <div class="title">${esc(info.title)}</div>
         <div class="meta">UP：${esc(info.author || '未知')}${info.durationMs ? ' · ' + fmtDur(info.durationMs) : ''}${info.stats && info.stats.like != null ? ' · 赞 ' + info.stats.like : ''}${info.stats && info.stats.view != null ? ' · 播放 ' + info.stats.view : ''}</div>
-        <div class="q">${info.type === 'video' ? `画质 <b>${esc(stream.quality)}</b>${stream.totalBytes ? ' · 约 ' + fmtMB(stream.totalBytes) : ''}${stream.multiSegment ? ' · 免登录流共 ' + stream.multiSegment + ' 段，下载第 1 段' : ''}` : '点击下方按钮逐张保存'}</div>
+        <div class="q">${info.type === 'video' ? `画质 <b>${esc(stream ? stream.quality : '默认')}</b>${stream && stream.totalBytes ? ' · 约 ' + fmtMB(stream.totalBytes) : ''}${stream && stream.multiSegment ? ' · 免登录流共 ' + stream.multiSegment + ' 段，下载第 1 段' : ''}` : '点击下方按钮逐张保存'}</div>
         <div class="actions" id="acts"></div>
+        <div class="progress-wrap" id="prog-wrap">
+          <div class="progress-bar-bg"><div class="progress-bar-fill" id="prog-fill"></div></div>
+          <div class="progress-text"><span id="prog-status">准备下载...</span><span id="prog-meta">0%</span></div>
+        </div>
         ${info.parts && info.parts.length > 1 ? '<div class="parts" id="parts"></div>' : ''}
         ${info.type === 'images' ? '<div class="gal" id="gal"></div>' : ''}
       </div>
     </div>`;
+
   const acts = result.querySelector('#acts');
 
   if (info.type === 'video') {
-    const a = document.createElement('a');
-    a.className = 'btn-main'; a.textContent = '⇩ 下载视频';
-    a.href = '/api/dl?key=' + curKey;
-    acts.appendChild(a);
+    if (hasNativeBridge && stream) {
+      const btn = document.createElement('button');
+      btn.className = 'btn-main';
+      btn.textContent = '⇩ 原生极速下载';
+      btn.onclick = () => {
+        btn.disabled = true;
+        btn.textContent = '正在下载...';
+        showProgressBox('正在启动原生下载...');
+        window.AndroidBridge.downloadVideo(
+          stream.url,
+          info.filename,
+          JSON.stringify(stream.headers || {})
+        );
+      };
+      acts.appendChild(btn);
+    } else {
+      const a = document.createElement('a');
+      a.className = 'btn-main';
+      a.textContent = '⇩ 下载视频';
+      a.href = '/api/dl?key=' + curKey;
+      acts.appendChild(a);
+    }
   }
+
   if (info.type === 'images') {
     const b = document.createElement('button');
-    b.className = 'btn-main'; b.textContent = '⇩ 全部下载（逐张另存）';
+    b.className = 'btn-main';
+    b.textContent = hasNativeBridge ? '⇩ 全部保存至相册' : '⇩ 全部下载（逐张另存）';
     b.onclick = () => saveImages(info);
     acts.appendChild(b);
   }
@@ -188,15 +291,19 @@ function render(j) {
       parts.appendChild(b);
     });
   }
+
   if (info.type === 'images' && info.images && info.images.length) {
     const gal = result.querySelector('#gal');
     gal.innerHTML = '';
     info.images.forEach((u, i) => {
       const a = document.createElement('a');
-      a.href = `/api/proxy?u=${encodeURIComponent(u)}&n=${encodeURIComponent(info.filename + '_' + String(i + 1).padStart(2, '0') + '.jpg')}`;
-      a.title = '点击保存第 ' + (i + 1) + ' 张';
+      a.href = proxyCover(u);
+      a.title = '第 ' + (i + 1) + ' 张';
+      if (!hasNativeBridge) {
+        a.href = `/api/proxy?u=${encodeURIComponent(u)}&n=${encodeURIComponent(info.filename + '_' + String(i + 1).padStart(2, '0') + '.jpg')}`;
+      }
       const img = document.createElement('img');
-      img.src = '/api/proxy?u=' + encodeURIComponent(u);
+      img.src = proxyCover(u);
       img.loading = 'lazy';
       a.appendChild(img);
       gal.appendChild(a);
@@ -204,7 +311,26 @@ function render(j) {
   }
 }
 
+function showProgressBox(initText) {
+  const wrap = $('#prog-wrap');
+  if (wrap) {
+    wrap.style.display = 'block';
+    $('#prog-status').textContent = initText || '下载中...';
+    $('#prog-fill').style.width = '0%';
+    $('#prog-meta').textContent = '0%';
+  }
+}
+
 function saveImages(info) {
+  if (hasNativeBridge) {
+    showProgressBox('正在批量下载图集到相册...');
+    window.AndroidBridge.downloadImages(
+      JSON.stringify(info.images || []),
+      info.filename
+    );
+    return;
+  }
+
   setStatus('已发起 ' + info.images.length + ' 张下载，请在浏览器弹窗中允许「下载多个文件」，逐张自动另存…');
   info.images.forEach((u, i) => {
     setTimeout(() => {
@@ -217,11 +343,83 @@ function saveImages(info) {
   });
 }
 
+// ---- Native Bridge Event Callbacks ----
+window.onDownloadProgress = function(dataOrTaskId, progress, current, total, speed) {
+  const wrap = $('#prog-wrap');
+  if (!wrap) return;
+  wrap.style.display = 'block';
+
+  let p = 0, speedStr = '', statusStr = '下载中';
+  if (typeof dataOrTaskId === 'object') {
+    p = dataOrTaskId.progress || 0;
+    if (dataOrTaskId.speedBytesPerSec > 0) speedStr = ' · ' + fmtSpeed(dataOrTaskId.speedBytesPerSec);
+    statusStr = dataOrTaskId.status === 'COMPLETED' ? '下载完成' : '下载中';
+  } else {
+    p = progress || 0;
+    if (speed > 0) speedStr = ' · ' + fmtSpeed(speed);
+  }
+
+  $('#prog-fill').style.width = p + '%';
+  $('#prog-meta').textContent = p + '%' + speedStr;
+  $('#prog-status').textContent = statusStr;
+};
+
+window.onDownloadComplete = function(taskId, filePath) {
+  const wrap = $('#prog-wrap');
+  if (!wrap) return;
+  $('#prog-fill').style.width = '100%';
+  $('#prog-status').textContent = '✅ 保存成功！';
+  $('#prog-meta').textContent = '相册及 Downloads 目录可用';
+  if (hasNativeBridge) {
+    window.AndroidBridge.toast('媒体下载完成并已入库相册喵！');
+  }
+};
+
+window.onDownloadError = function(taskId, code, msg) {
+  const wrap = $('#prog-wrap');
+  if (!wrap) return;
+  $('#prog-status').textContent = '✗ 下载失败';
+  $('#prog-meta').textContent = msg || '错误';
+};
+
+window.onClipboardDetected = function(url) {
+  if (!url) return;
+  if (input.value.trim() === url.trim()) return;
+  clipText.textContent = url;
+  clipBanner.style.display = 'flex';
+
+  clipGo.onclick = () => {
+    input.value = url;
+    clipBanner.style.display = 'none';
+    run();
+  };
+
+  clipClose.onclick = () => {
+    clipBanner.style.display = 'none';
+  };
+};
+
+window.onSharedTextReceived = function(text) {
+  if (!text) return;
+  input.value = text;
+  run();
+};
+
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 go.onclick = run;
 input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
 loadHist();
+
+// Initial check for native clipboard if running inside app
+if (hasNativeBridge) {
+  try {
+    const initialClip = window.AndroidBridge.getClipboardText();
+    if (initialClip && (/douyin\.com|bilibili\.com|b23\.tv/.test(initialClip))) {
+      window.onClipboardDetected(initialClip);
+    }
+  } catch (_) {}
+}
 </script>
 </body>
 </html>
