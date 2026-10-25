@@ -479,7 +479,7 @@ const PAGE_HTML = [
 '</main>',
 '<footer>Cloudflare Workers 边缘运行 · 建议设置 ACCESS_TOKEN 环境变量防滥用</footer>',
 '<script>',
-'var $=function(s){return document.querySelector(s)};',
+'var $=function(s){return document.getElementById(s)||document.querySelector(s)};',
 'var input=$("q"),go=$("go"),status=$("status"),result=$("result"),tk=$("tk");',
 'var T=localStorage.getItem("wk_token")||"";tk.value=T;',
 'function api(p){return p+(p.indexOf("?")>=0?"&":"?")+"token="+encodeURIComponent(T)};',
