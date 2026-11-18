@@ -265,7 +265,7 @@ public final class HubActivity extends Activity {
         LinearLayout tile = column();
         tile.setPadding(dp(12), dp(11), dp(12), dp(11));
         tile.setBackground(shape(SURFACE, 13, true));
-        tile.setMinHeight(dp(108));
+        tile.setMinimumHeight(dp(108));
         tile.setElevation(dp(1));
         tile.setFocusable(true);
         tile.setOnClickListener(view -> navigate.run());
