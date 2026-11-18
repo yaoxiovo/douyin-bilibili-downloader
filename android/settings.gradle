@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "DouyinBilibiliDownloader"
 include ':app'
+include ':hub'

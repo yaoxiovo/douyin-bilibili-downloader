@@ -44,12 +44,12 @@ jobs:
       - name: Build APK with Gradle
         run: |
           cd android
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee /tmp/gradle_debug.log || {
+          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee /tmp/gradle_debug.log || {
             echo "::error::Gradle assembleDebug failed"
             tail -n 120 /tmp/gradle_debug.log
             exit 1
           }
-          ./gradlew assembleRelease --stacktrace || true
+          ./gradlew :app:assembleRelease --stacktrace || true
 
       - name: Prepare APK for Release & Artifacts
         run: |
@@ -80,6 +80,21 @@ jobs:
           path: |
             douyin-bilibili-downloader.apk
             output_apks/*.apk
+          retention-days: 30
+
+      - name: Build YaoXi Hub APK
+        working-directory: android
+        run: ./gradlew :hub:assembleDebug --stacktrace
+
+      - name: Package YaoXi Hub APK
+        run: cp android/hub/build/outputs/apk/debug/hub-debug.apk output_apks/yaoxi-hub-debug.apk
+
+      - name: Upload YaoXi Hub APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: yaoxi-hub-apk
+          path: output_apks/yaoxi-hub-debug.apk
+          if-no-files-found: error
           retention-days: 30
 
       - name: Create GitHub Release
