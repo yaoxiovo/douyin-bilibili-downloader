@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fetchAnalytics } from './analytics.mjs';
+import { projectOperations, publicStatus, publicWallpapers, startMonitoring } from './projects.mjs';
 
 const env = process.env;
 const identity = 'https://account.yaoxi.wiki';
@@ -123,7 +124,9 @@ function note(title, result) {
   return result;
 }
 
+const { projectAlerts, ...projectApi } = projectOperations(github, tencent);
 const operations = {
+  ...projectApi,
   analytics: fetchAnalytics,
   repositories: async data => {
     const page = Math.floor(offset(data) / 100) + 1;
@@ -135,15 +138,9 @@ const operations = {
       .map(({ name, html_url, private: hidden }) => ({ name, url: html_url, private: hidden })) };
   },
   messages: async () => {
-    let ci = [];
-    let githubError = '';
-    try {
-      const result = await github('/repos/yaoxiovo/douyin-bilibili-downloader/actions/runs?per_page=10');
-      ci = result.workflow_runs.filter(run => run.status === 'completed' && run.conclusion === 'failure')
-        .map(run => ({ title: run.name + ' · 构建失败', detail: run.display_title, url: run.html_url, time: run.updated_at }));
-    } catch (error) { githubError = error.message; }
-    const items = [...notifications, ...ci].sort((left, right) => right.time.localeCompare(left.time));
-    return { items, githubError };
+    const alerts = await projectAlerts();
+    const items = [...notifications, ...alerts].sort((left, right) => right.time.localeCompare(left.time));
+    return { items };
   },
   domains: data => tencent('dnspod', 'DescribeDomainList', { Offset: offset(data), Limit: 50 }),
   lines: async data => {
@@ -250,6 +247,8 @@ async function route(req, res) {
   });
   if (path === '/auth/callback.js' && req.method === 'GET') return response(res, 200,
     await readFile(new URL('./callback.js', import.meta.url)), { 'Content-Type': 'text/javascript; charset=utf-8' });
+  if (req.method === 'GET' && path === '/public/status') return response(res, 200, await publicStatus());
+  if (req.method === 'GET' && path === '/public/wallpapers') return response(res, 200, await publicWallpapers());
   if (req.method !== 'POST') throw new ApiError(404, '接口不存在');
 
   if (path === '/auth/start') {
@@ -309,6 +308,8 @@ async function route(req, res) {
   const result = await operations[operation](await readJson(req));
   return response(res, 200, result);
 }
+
+startMonitoring();
 
 createServer((req, res) => route(req, res).catch(error => {
   if (!res.headersSent) response(res, error.status || 502, { error: error.status ? error.message : '服务暂不可用' });

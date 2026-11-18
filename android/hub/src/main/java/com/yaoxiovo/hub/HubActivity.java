@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import android.graphics.Typeface;
 import android.graphics.Canvas;
+import android.graphics.Bitmap;
 import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -20,6 +21,7 @@ import android.view.Gravity;
 import android.view.animation.DecelerateInterpolator;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -72,7 +74,7 @@ public final class HubActivity extends Activity {
     private boolean pollRunning;
 
     private enum Page {
-        HOME(0), WORK(1), MESSAGES(2), ACCOUNT(3), DNS(1), EDGE(1), ANALYTICS(0);
+        HOME(0), WORK(1), MESSAGES(2), ACCOUNT(3), DNS(1), EDGE(1), ANALYTICS(0), PROJECTS(1), PROJECT(1), BLOG(1), STATUS(0);
 
         final int tab;
 
@@ -83,6 +85,7 @@ public final class HubActivity extends Activity {
 
     private Page page = Page.HOME;
     private String searchQuery = "";
+    private String projectId = "";
     private int bingSiteIndex;
     private String bingPeriod = "7d";
     private LinearLayout content;
@@ -94,6 +97,7 @@ public final class HubActivity extends Activity {
         if (state != null) {
             page = Page.valueOf(state.getString("page", Page.HOME.name()));
             searchQuery = state.getString("query", "");
+            projectId = state.getString("projectId", "");
             bingSiteIndex = state.getInt("bingSite");
             bingPeriod = state.getString("bingPeriod", "7d");
             pendingState = state.getString("signInState");
@@ -120,6 +124,7 @@ public final class HubActivity extends Activity {
     protected void onSaveInstanceState(Bundle state) {
         state.putString("page", page.name());
         state.putString("query", searchQuery);
+        state.putString("projectId", projectId);
         state.putInt("bingSite", bingSiteIndex);
         state.putString("bingPeriod", bingPeriod);
         if (launchedSignIn) {
@@ -131,7 +136,9 @@ public final class HubActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (page == Page.DNS || page == Page.EDGE) {
+        if (page == Page.PROJECT) {
+            open(Page.PROJECTS);
+        } else if (page == Page.DNS || page == Page.EDGE || page == Page.PROJECTS || page == Page.BLOG) {
             open(Page.WORK);
         } else if (page != Page.HOME) {
             open(Page.HOME);
@@ -175,6 +182,10 @@ public final class HubActivity extends Activity {
             case DNS -> showCloud(true);
             case EDGE -> showCloud(false);
             case ANALYTICS -> showAnalytics();
+            case PROJECTS -> showProjects();
+            case PROJECT -> showProject();
+            case BLOG -> showBlog();
+            case STATUS -> showStatus();
         }
         content.requestFocus();
         animateIn(content, 12);
@@ -277,6 +288,12 @@ public final class HubActivity extends Activity {
             homeTile("状态", "网站状态页", "status.yaoxi.wiki", SAGE, () -> openInApp("https://status.yaoxi.wiki")),
             95);
 
+        section("壁纸精选");
+        showWallpapers();
+
+        section("站点监控");
+        showHomeStatus();
+
         section("数据概览");
         showHomeAnalytics();
 
@@ -376,6 +393,10 @@ public final class HubActivity extends Activity {
                     date(umami.optLong("startAt"), zone) + " 至 " + date(umami.optLong("endAt"), zone);
             }
             reports.addView(card("Umami", detail, null));
+            if (available(umami)) {
+                addTrend(reports, "Umami · 每日浏览量", umami.optJSONArray("trend"));
+                addRanking(reports, "热门页面", umami.optJSONArray("topPages"), "浏览");
+            }
 
             LinearLayout bingReport = column();
             add(reports, bingReport, 8);
@@ -421,6 +442,10 @@ public final class HubActivity extends Activity {
                 date(window.optLong("startAt"), utc) + " 至 " + date(window.optLong("endAt"), utc);
         }
         add(report, card("Bing · 搜索表现", detail, null), 6);
+        if (window != null) {
+            addTrend(report, "Bing · 每日点击量", window.optJSONArray("trend"));
+            addRanking(report, "热门搜索词", window.optJSONArray("topQueries"), "点击");
+        }
     }
 
     private JSONObject selectedBingSite(JSONObject source, int index) {
@@ -454,8 +479,376 @@ public final class HubActivity extends Activity {
         return Instant.ofEpochMilli(millis).atZone(zone).toLocalDate().toString();
     }
 
+    private void showWallpapers() {
+        TextView loading = text("正在读取壁纸…", 13, MUTED, false);
+        add(content, loading, 8);
+        LinearLayout tiles = new LinearLayout(this);
+        add(content, tiles, 6);
+        String apiOrigin = origin;
+        fetch(() -> HubApi.publicFeed(apiOrigin, "/public/wallpapers"), result -> {
+            JSONArray items = result.optJSONArray("items");
+            if (items == null || items.length() == 0) {
+                loading.setText("暂时没有公开壁纸");
+                return;
+            }
+            loading.setVisibility(View.GONE);
+            for (int index = 0; index < items.length(); index++) {
+                JSONObject item = items.optJSONObject(index);
+                if (item == null) continue;
+                ImageView picture = new ImageView(this);
+                picture.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                picture.setBackground(shape(SELECTED, 9, true));
+                picture.setClipToOutline(true);
+                String title = item.optString("title");
+                picture.setContentDescription(title.isEmpty() || title.startsWith("file_") ? "打开壁纸预览" : title);
+                picture.setOnClickListener(view -> openInApp(item.optString("url")));
+                picture.setFocusable(true);
+                LinearLayout.LayoutParams frame = new LinearLayout.LayoutParams(0, dp(112), 1);
+                if (index > 0) frame.leftMargin = dp(7);
+                tiles.addView(picture, frame);
+                loadWallpaper(picture, item.optString("image"));
+            }
+            animateIn(tiles, 6);
+        }, loading::setText);
+    }
+
+    private void loadWallpaper(ImageView picture, String address) {
+        network.execute(() -> {
+            try {
+                Bitmap bitmap = HubApi.wallpaper(address);
+                runOnUiThread(() -> {
+                    if (isDestroyed() || !picture.isAttachedToWindow()) {
+                        if (bitmap != null) bitmap.recycle();
+                    } else {
+                        picture.setImageBitmap(bitmap);
+                    }
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> {
+                    if (!isDestroyed() && picture.isAttachedToWindow()) {
+                        picture.setImageResource(android.R.drawable.ic_menu_gallery);
+                    }
+                });
+            }
+        });
+    }
+
+    private void showHomeStatus() {
+        TextView loading = text("正在读取站点状态…", 13, MUTED, false);
+        add(content, loading, 6);
+        LinearLayout rows = column();
+        add(content, rows, 6);
+        String apiOrigin = origin;
+        fetch(() -> HubApi.publicFeed(apiOrigin, "/public/status"), result -> {
+            JSONArray items = result.optJSONArray("items");
+            if (items == null || items.length() == 0) {
+                loading.setText("暂时没有探测结果");
+                return;
+            }
+            int alerts = 0;
+            for (int index = 0; index < items.length(); index++) {
+                JSONObject item = items.optJSONObject(index);
+                if (item != null && !"访问正常".equals(monitorLabel(item))) alerts++;
+            }
+            loading.setVisibility(View.GONE);
+            rows.addView(card("站点状态", items.length() + " 个项目 · " +
+                (alerts == 0 ? "访问正常" : alerts + " 个项目需关注"), () -> open(Page.STATUS)));
+        }, loading::setText);
+    }
+
+    private void showStatus() {
+        content.addView(action("← 返回首页", () -> open(Page.HOME)));
+        section("站点监控");
+        TextView loading = text("正在读取站点状态…", 14, MUTED, false);
+        LinearLayout panel = column();
+        add(content, panel, 8);
+        panel.addView(loading);
+        String apiOrigin = origin;
+        fetch(() -> HubApi.publicFeed(apiOrigin, "/public/status"), result -> {
+            JSONArray items = result.optJSONArray("items");
+            if (items == null || items.length() == 0) {
+                loading.setText("暂时没有探测结果");
+                return;
+            }
+            panel.removeAllViews();
+            for (int index = 0; index < items.length(); index++) {
+                JSONObject item = items.optJSONObject(index);
+                if (item == null) continue;
+                add(panel, card(item.optString("name") + " · " + monitorLabel(item),
+                    monitorDetail(item), () -> openProject(item.optString("id"))), 8);
+            }
+        }, loading::setText);
+    }
+
+    private String monitorLabel(JSONObject item) {
+        JSONArray checks = item.optJSONArray("checks");
+        String label = "访问正常";
+        if (checks == null || checks.length() == 0) return "尚无探测结果";
+        for (int index = 0; index < checks.length(); index++) {
+            JSONObject check = checks.optJSONObject(index);
+            if (check == null) continue;
+            if ("unavailable".equals(check.optString("status"))) return "访问异常";
+            if ("slow".equals(check.optString("status"))) label = "响应较慢";
+            long expiry = check.optLong("expiresAt");
+            if (expiry > 0 && expiry - System.currentTimeMillis() <= 14 * 86400000L) label = "证书即将到期";
+        }
+        return label;
+    }
+
+    private String monitorDetail(JSONObject item) {
+        JSONArray checks = item.optJSONArray("checks");
+        if (checks == null || checks.length() == 0) return "尚无探测结果";
+        StringBuilder result = new StringBuilder();
+        for (int index = 0; index < checks.length(); index++) {
+            JSONObject check = checks.optJSONObject(index);
+            if (check == null) continue;
+            if (result.length() > 0) result.append('\n');
+            result.append(check.optString("name"));
+            if (check.has("latency")) result.append(" · ").append(check.optInt("latency")).append(" ms")
+                .append(" · HTTP ").append(check.optInt("http"));
+            else result.append(" · ").append(check.optString("error", "无法连接"));
+            if (!check.isNull("expiresAt")) result.append(" · 证书到期 ").append(
+                date(check.optLong("expiresAt"), ZoneId.of("Asia/Shanghai")));
+        }
+        return result.toString();
+    }
+
+    private void showProjects() {
+        heading("项目详情", "集中查看站点、发布和云资源");
+        if (needsProjectLogin()) return;
+        TextView loading = text("正在读取项目…", 14, MUTED, false);
+        LinearLayout rows = column();
+        add(content, rows, 8);
+        rows.addView(loading);
+        api("/api/projects", HubApi.object(), result -> {
+            JSONArray items = result.optJSONArray("items");
+            if (items == null || items.length() == 0) { loading.setText("暂时没有项目"); return; }
+            rows.removeAllViews();
+            for (int index = 0; index < items.length(); index++) {
+                JSONObject item = items.optJSONObject(index);
+                if (item == null) continue;
+                add(rows, card(item.optString("name"), item.optString("url"),
+                    () -> openProject(item.optString("id"))), 8);
+            }
+        }, loading::setText);
+    }
+
+    private boolean needsProjectLogin() {
+        if (session != null) return false;
+        add(content, card("登录后查看", "前往账号统一中心", () -> open(Page.ACCOUNT)), 10);
+        return true;
+    }
+
+    private void openProject(String id) {
+        projectId = id;
+        if (page == Page.PROJECT) render();
+        else open(Page.PROJECT);
+    }
+
+    private void showProject() {
+        content.addView(action("← 项目列表", () -> open(Page.PROJECTS)));
+        if (needsProjectLogin()) return;
+        TextView loading = text("正在读取项目详情…", 14, MUTED, false);
+        add(content, loading, 10);
+        api("/api/project", HubApi.object("id", projectId), result -> {
+            JSONObject project = result.optJSONObject("project");
+            if (project == null) { loading.setText("项目详情暂不可用"); return; }
+            content.removeView(loading);
+            section(project.optString("name"));
+            add(content, link("打开站点", project.optString("host"), project.optString("url")), 8);
+            JSONObject monitor = result.optJSONObject("monitor");
+            if (monitor != null) add(content, card("站点监控 · " + monitorLabel(monitor), monitorDetail(monitor), null), 8);
+            showProjectBuild(result.optJSONObject("github"));
+            showProjectDns(result.optJSONObject("dns"));
+            showProjectEdge(result.optJSONObject("edge"));
+            if (project.optBoolean("analytics")) showProjectAnalytics(project);
+            if ("blog".equals(project.optString("id"))) {
+                add(content, card("博客运营", "草稿、发布与评论审核", () -> open(Page.BLOG)), 8);
+            }
+        }, loading::setText);
+    }
+
+    private void showProjectBuild(JSONObject source) {
+        if (source == null) return;
+        section("GitHub");
+        add(content, link("仓库", source.optString("repoUrl"), source.optString("repoUrl")), 8);
+        JSONObject latest = source.optJSONObject("latestRun");
+        if (latest != null) {
+            String status = latest.isNull("conclusion") ? latest.optString("status") : latest.optString("conclusion");
+            String label = switch (status) {
+                case "success" -> "通过";
+                case "failure" -> "失败";
+                case "queued" -> "排队中";
+                case "in_progress" -> "构建中";
+                default -> status;
+            };
+            add(content, link("最近构建 · " + label, latest.optString("title"), latest.optString("url")), 8);
+        } else if ("unavailable".equals(source.optString("workflowStatus"))) {
+            add(content, card("构建记录", "暂时无法读取", null), 8);
+        }
+        JSONObject failure = source.optJSONObject("latestFailure");
+        if (failure != null) {
+            JSONObject step = failure.optJSONObject("step");
+            add(content, link("最近失败步骤", step == null ? failure.optString("title") : step.optString("name"),
+                step == null ? failure.optString("url") : step.optString("url")), 8);
+        }
+        JSONObject release = source.optJSONObject("release");
+        if (release != null) add(content, link("最新版本 · " + release.optString("tag"),
+            release.optString("publishedAt"), release.optString("url")), 8);
+    }
+
+    private void showProjectDns(JSONObject source) {
+        section("DNS 与加速");
+        JSONObject domain = source == null ? null : source.optJSONObject("domain");
+        JSONArray records = source == null ? null : source.optJSONArray("records");
+        StringBuilder detail = new StringBuilder();
+        if (records != null) for (int index = 0; index < records.length(); index++) {
+            JSONObject row = records.optJSONObject(index);
+            if (row == null) continue;
+            if (detail.length() > 0) detail.append('\n');
+            detail.append(row.optString("type")).append(" · ").append(row.optString("value"))
+                .append(" · TTL ").append(row.optInt("ttl"));
+        }
+        if (detail.length() == 0) {
+            detail.append(source != null && "unavailable".equals(source.optString("status"))
+                ? "暂时无法读取" : "未找到相关 DNSPod 记录");
+        }
+        add(content, card("DNSPod", detail.toString(), () -> {
+            open(Page.DNS);
+            if (domain != null) showDomain(domain);
+        }), 8);
+    }
+
+    private void showProjectEdge(JSONObject source) {
+        JSONObject site = source == null ? null : source.optJSONObject("site");
+        String detail = site == null
+            ? (source != null && "unavailable".equals(source.optString("status")) ? "暂时无法读取" : "未找到对应的加速域名")
+            : site.optString("ZoneName") + " · " + source.optString("enabled");
+        add(content, card("EdgeOne", detail, () -> {
+            open(Page.EDGE);
+            if (site != null) showZone(site);
+        }), 8);
+    }
+
+    private void showProjectAnalytics(JSONObject project) {
+        section("流量与搜索");
+        LinearLayout rows = column();
+        add(content, rows, 8);
+        String host = project.optString("host");
+        Runnable openReport = () -> {
+            bingSiteIndex = "blog".equals(project.optString("id")) ? 1 : 0;
+            open(Page.ANALYTICS);
+        };
+        rows.addView(card("Umami 与 Bing", "查看数据概览", openReport));
+        api("/api/analytics", HubApi.object(), result -> {
+            JSONObject umami = result.optJSONObject("umami");
+            JSONObject bing = result.optJSONObject("bing");
+            JSONArray sites = bing == null ? null : bing.optJSONArray("sites");
+            if (available(umami) && host.equals(umami.optString("name"))) {
+                add(rows, card("Umami · 近 7 天", "浏览 " + count(umami, "pageviews") +
+                    " · 访客 " + count(umami, "visitors"), openReport), 8);
+            }
+            if (sites == null) return;
+            for (int index = 0; index < sites.length(); index++) {
+                JSONObject site = sites.optJSONObject(index);
+                if (site == null || !host.equals(site.optString("name"))) continue;
+                JSONObject period = bingWindow(site, "7d");
+                if (period != null) add(rows, card("Bing · 7 天报表", "点击 " + count(period, "clicks") +
+                    " · 展示 " + count(period, "impressions"), openReport), 8);
+                break;
+            }
+        }, ignored -> {});
+    }
+
+    private void showBlog() {
+        heading("博客运营", "草稿、发布与评论审核");
+        add(content, link("打开发布编辑器", "在博客后台编辑并发起发布", "https://blog.yaoxi.wiki/admin/"), 8);
+        if (needsProjectLogin()) return;
+        TextView loading = text("正在读取博客…", 14, MUTED, false);
+        add(content, loading, 10);
+        api("/api/blog", HubApi.object(), data -> {
+            content.removeView(loading);
+            JSONObject posts = data.optJSONObject("posts");
+            section("仓库草稿");
+            showBlogPosts(posts == null ? null : posts.optJSONArray("drafts"), true);
+            section("最近发布");
+            showBlogPosts(posts == null ? null : posts.optJSONArray("published"), false);
+            section("待审评论与弹幕");
+            JSONArray queue = data.optJSONArray("pending");
+            if (queue == null || queue.length() == 0) {
+                add(content, card("审核队列", queue == null ? "暂时无法读取" : "暂无待审条目", null), 8);
+            } else {
+                for (int index = 0; index < queue.length(); index++) {
+                    JSONObject item = queue.optJSONObject(index);
+                    if (item == null) continue;
+                    add(content, card(item.optString("author"), item.optString("body"), () -> moderate(item)), 8);
+                }
+            }
+        }, loading::setText);
+    }
+
+    private void showBlogPosts(JSONArray rows, boolean draft) {
+        if (rows == null || rows.length() == 0) {
+            add(content, card(draft ? "草稿" : "文章",
+                rows == null ? "暂时无法读取" : draft ? "暂无已同步的仓库草稿" : "暂无发布记录", null), 8);
+            return;
+        }
+        for (int index = 0; index < rows.length(); index++) {
+            JSONObject row = rows.optJSONObject(index);
+            if (row == null) continue;
+            String target = draft ? "https://blog.yaoxi.wiki/admin/" :
+                "https://blog.yaoxi.wiki/posts/" + Uri.encode(row.optString("slug"), "/") + "/";
+            add(content, link(row.optString("title"), row.optString("published"), target), 8);
+        }
+    }
+
+    private void moderate(JSONObject comment) {
+        String[] choices = { "通过", "拒绝" };
+        new AlertDialog.Builder(this).setTitle("评论审核").setItems(choices, (dialog, choice) ->
+            confirm("确认" + choices[choice], comment.optString("body"), () ->
+                api("/api/moderate", HubApi.object("id", comment.optString("id"),
+                    "action", choice == 0 ? "approve" : "reject"), result -> {
+                        toast("审核已提交");
+                        render();
+                    }, this::toast))).setNegativeButton("取消", null).show();
+    }
+
+    private void addTrend(LinearLayout parent, String label, JSONArray rows) {
+        add(parent, text(label, 15, INK, true), 12);
+        if (rows == null || rows.length() == 0) {
+            add(parent, text(rows == null ? "暂时无法读取趋势" : "当前区间暂无报表", 13, MUTED, false), 5);
+            return;
+        }
+        ArrayList<Long> points = new ArrayList<>();
+        for (int index = 0; index < rows.length(); index++) {
+            JSONObject row = rows.optJSONObject(index);
+            if (row != null && !row.isNull("value")) points.add(row.optLong("value"));
+        }
+        if (points.isEmpty()) return;
+        LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(-1, dp(68));
+        size.topMargin = dp(6);
+        parent.addView(new DailyTrend(this, label, points), size);
+        add(parent, text(rows.optJSONObject(0).optString("day") + "　—　" +
+            rows.optJSONObject(rows.length() - 1).optString("day"), 12, MUTED, false), 5);
+    }
+
+    private void addRanking(LinearLayout parent, String title, JSONArray rows, String units) {
+        add(parent, text(title, 15, INK, true), 12);
+        if (rows == null || rows.length() == 0) {
+            add(parent, text(rows == null ? "暂时无法读到排行" : "当前区间暂无排行", 13, MUTED, false), 5);
+            return;
+        }
+        for (int index = 0; index < rows.length(); index++) {
+            JSONObject row = rows.optJSONObject(index);
+            if (row != null) add(parent, card(row.optString("name"), units + " " + count(row, "value"), null), 5);
+        }
+    }
+
     private void showWork() {
         heading("工作台", "项目索引与云服务");
+        section("项目");
+        add(content, card("项目详情", "站点、构建、DNS、EdgeOne 和数据", () -> open(Page.PROJECTS)), 8);
+        add(content, card("博客运营", "草稿、近期发布与评论审核", () -> open(Page.BLOG)), 8);
         section("快捷管理");
         add(content, card("DNS 解析", "腾讯云 DNSPod", () -> open(Page.DNS)), 8);
         add(content, card("EdgeOne", "站点、解析与缓存", () -> open(Page.EDGE)), 8);
@@ -522,7 +915,7 @@ public final class HubActivity extends Activity {
             JSONArray items = result.optJSONArray("items");
             String error = result.optString("githubError");
             if (!error.isEmpty()) status.setText(error);
-            else if (items == null || items.length() == 0) status.setText("最近没有构建失败或云操作记录。");
+            else if (items == null || items.length() == 0) status.setText("暂无站点、构建或云操作提醒。");
             else rows.removeView(status);
             if (items == null) return;
             for (int i = 0; i < items.length(); i++) {
@@ -530,7 +923,9 @@ public final class HubActivity extends Activity {
                 String title = message.optString("title");
                 String detail = message.optString("detail") + "\n" + message.optString("time");
                 String url = message.optString("url");
-                add(rows, url.isEmpty() ? card(title, detail, null) : link(title, detail, url), 8);
+                String related = message.optString("projectId");
+                if (!url.isEmpty()) add(rows, link(title, detail, url), 8);
+                else add(rows, card(title, detail, related.isEmpty() ? null : () -> openProject(related)), 8);
             }
             animateIn(rows, 6);
         }, status::setText);

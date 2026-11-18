@@ -37,14 +37,27 @@ const loadUmami = cache(async () => {
       typeof source.token !== 'string' || !source.token) throw new Error('Invalid Umami share');
   const endAt = Date.now();
   const startAt = endAt - 7 * day;
-  const url = new URL('/api/websites/' + source.websiteId + '/stats', umamiOrigin);
-  url.search = new URLSearchParams({ startAt, endAt });
-  const result = await fetchJson(url, {
-    headers: { 'x-umami-share-token': source.token, 'x-umami-share-context': shareId }
-  });
+  const headers = { 'x-umami-share-token': source.token, 'x-umami-share-context': shareId };
+  const report = (operation, options = {}) => {
+    const url = new URL('/api/websites/' + source.websiteId + '/' + operation, umamiOrigin);
+    url.search = new URLSearchParams({ startAt, endAt, ...options });
+    return fetchJson(url, { headers });
+  };
+  const [stats, trend, pages] = await Promise.allSettled([
+    report('stats'), report('pageviews', { unit: 'day', timezone: 'Asia/Shanghai' }),
+    report('metrics', { type: 'path', limit: 5 })
+  ]);
+  if (stats.status !== 'fulfilled') throw new Error('Missing Umami metrics');
+  const result = stats.value;
   const values = { pageviews: metric(result.pageviews), visitors: metric(result.visitors), visits: metric(result.visits) };
   if (Object.values(values).every(value => value === null)) throw new Error('Missing Umami metrics');
-  return { name: 'blog.yaoxi.wiki', startAt, endAt, ...values };
+  const timeSeries = trend.status === 'fulfilled' && Array.isArray(trend.value.pageviews)
+    ? trend.value.pageviews.filter(item => typeof item.x === 'string' && metric(item.y) !== null)
+      .map(item => ({ day: item.x.slice(0, 10), value: metric(item.y) })) : null;
+  const rankings = pages.status === 'fulfilled' && Array.isArray(pages.value)
+    ? pages.value.filter(item => typeof item.x === 'string' && metric(item.y) !== null)
+      .map(item => ({ name: item.x.slice(0, 200), value: metric(item.y) })) : null;
+  return { name: 'blog.yaoxi.wiki', startAt, endAt, ...values, trend: timeSeries, topPages: rankings };
 }, 5 * 60_000);
 
 function reportingDay(value) {
@@ -55,19 +68,39 @@ function reportingDay(value) {
     ? Math.floor(time / day) * day : null;
 }
 
-function bingPeriod(reports, days) {
+function bingPeriod(reports, days, queries) {
   const endAt = reports.at(-1).time;
   const period = reports.filter(row => row.time >= endAt - (days - 1) * day);
   const clicks = period.reduce((total, row) => total + row.clicks, 0);
   const impressions = period.reduce((total, row) => total + row.impressions, 0);
-  return { startAt: period[0].time, endAt, clicks, impressions, ctr: impressions > 0 ? clicks * 100 / impressions : null };
+  const trend = period.map(row => ({ day: new Date(row.time).toISOString().slice(0, 10), value: row.clicks }));
+  const grouped = new Map();
+  for (const row of queries ?? []) {
+    const time = reportingDay(row.Date);
+    const value = metric(row.Clicks);
+    const impressions = metric(row.Impressions);
+    const name = typeof row.Query === 'string' ? row.Query.trim().slice(0, 160) : '';
+    if (!name || value === null || impressions === null || time === null || time < endAt - (days - 1) * day || time > endAt) continue;
+    const previous = grouped.get(name) ?? { name, value: 0, impressions: 0 };
+    previous.value += value;
+    previous.impressions += impressions;
+    grouped.set(name, previous);
+  }
+  const topQueries = queries === null ? null : [...grouped.values()].sort((left, right) =>
+    right.value - left.value || right.impressions - left.impressions).slice(0, 5);
+  return { startAt: period[0].time, endAt, clicks, impressions, ctr: impressions > 0 ? clicks * 100 / impressions : null, trend, topQueries };
 }
 
 async function bingSite(name) {
-  const url = new URL('https://ssl.bing.com/webmaster/api.svc/json/GetRankAndTrafficStats');
-  url.search = new URLSearchParams({ siteUrl: 'https://' + name + '/', apikey: process.env.HUB_BING_API_KEY });
-  const response = await fetchJson(url);
-  if (!Array.isArray(response.d)) throw new Error('Invalid Bing response');
+  const report = operation => {
+    const url = new URL('https://ssl.bing.com/webmaster/api.svc/json/' + operation);
+    url.search = new URLSearchParams({ siteUrl: 'https://' + name + '/', apikey: process.env.HUB_BING_API_KEY });
+    return fetchJson(url);
+  };
+  const [traffic, rankings] = await Promise.allSettled([report('GetRankAndTrafficStats'), report('GetQueryStats')]);
+  if (traffic.status !== 'fulfilled' || !Array.isArray(traffic.value.d)) throw new Error('Invalid Bing response');
+  const response = traffic.value;
+  const queries = rankings.status === 'fulfilled' && Array.isArray(rankings.value.d) ? rankings.value.d : null;
   const daily = new Map();
   for (const row of response.d) {
     const time = reportingDay(row.Date);
@@ -77,7 +110,7 @@ async function bingSite(name) {
   }
   const reports = [...daily.values()].sort((left, right) => left.time - right.time);
   if (!reports.length) return { name, status: 'no-data' };
-  return { name, status: 'available', periods: { '7d': bingPeriod(reports, 7), '28d': bingPeriod(reports, 28) } };
+  return { name, status: 'available', periods: { '7d': bingPeriod(reports, 7, queries), '28d': bingPeriod(reports, 28, queries) } };
 }
 
 const loadBing = cache(async () => {
