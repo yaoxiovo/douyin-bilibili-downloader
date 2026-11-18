@@ -2,7 +2,7 @@
 
 | 项目 | 源码 | 构建与部署 |
 | --- | --- | --- |
-| Yaoxi Hub Android | [`android/hub`](android/hub) | [Hub CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/yaoxi-hub.yml) · [Hub APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/tag/yaoxi-hub-v0.4.0) |
+| Yaoxi Hub Android | [`android/hub`](android/hub) | [Hub CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/yaoxi-hub.yml) · [Hub APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/tag/yaoxi-hub-v0.5.0) |
 | Yaoxi Hub API | [`hub-api`](hub-api) | [自建部署文档](hub-api/README.md) |
 | 抖音 / B站 下载器 | [Android 模块](android/app) · [Web 和 CLI](#网页版推荐) · [Workers](worker) | [下载器 CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/build-apk.yml) · [下载器 APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/latest) |
 

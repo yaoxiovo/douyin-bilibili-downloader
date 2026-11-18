@@ -33,6 +33,9 @@ import androidx.browser.customtabs.CustomTabsService;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.text.NumberFormat;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.concurrent.Callable;
@@ -69,7 +72,7 @@ public final class HubActivity extends Activity {
     private boolean pollRunning;
 
     private enum Page {
-        HOME(0), WORK(1), MESSAGES(2), ACCOUNT(3), DNS(1), EDGE(1);
+        HOME(0), WORK(1), MESSAGES(2), ACCOUNT(3), DNS(1), EDGE(1), ANALYTICS(0);
 
         final int tab;
 
@@ -80,6 +83,8 @@ public final class HubActivity extends Activity {
 
     private Page page = Page.HOME;
     private String searchQuery = "";
+    private int bingSiteIndex;
+    private String bingPeriod = "7d";
     private LinearLayout content;
 
     @Override
@@ -89,6 +94,8 @@ public final class HubActivity extends Activity {
         if (state != null) {
             page = Page.valueOf(state.getString("page", Page.HOME.name()));
             searchQuery = state.getString("query", "");
+            bingSiteIndex = state.getInt("bingSite");
+            bingPeriod = state.getString("bingPeriod", "7d");
             pendingState = state.getString("signInState");
             pendingCode = state.getString("signInCode");
             launchedSignIn = pendingState != null && pendingCode != null;
@@ -113,6 +120,8 @@ public final class HubActivity extends Activity {
     protected void onSaveInstanceState(Bundle state) {
         state.putString("page", page.name());
         state.putString("query", searchQuery);
+        state.putInt("bingSite", bingSiteIndex);
+        state.putString("bingPeriod", bingPeriod);
         if (launchedSignIn) {
             state.putString("signInState", pendingState);
             state.putString("signInCode", pendingCode);
@@ -165,6 +174,7 @@ public final class HubActivity extends Activity {
             case ACCOUNT -> showAccount();
             case DNS -> showCloud(true);
             case EDGE -> showCloud(false);
+            case ANALYTICS -> showAnalytics();
         }
         content.requestFocus();
         animateIn(content, 12);
@@ -263,9 +273,12 @@ public final class HubActivity extends Activity {
             homeTile("博客", "个人博客", "blog.yaoxi.wiki", PEACH, () -> openInApp("https://blog.yaoxi.wiki")),
             50);
         homePair(
+            homeTile("壁纸", "壁纸站", "pic.yaoxi.wiki", LILAC, () -> openInApp("https://pic.yaoxi.wiki")),
             homeTile("状态", "网站状态页", "status.yaoxi.wiki", SAGE, () -> openInApp("https://status.yaoxi.wiki")),
-            homeTile("数据", "Bing 搜索数据", "bing.yaoxi.wiki", LILAC, () -> openInApp("https://bing.yaoxi.wiki")),
             95);
+
+        section("数据概览");
+        showHomeAnalytics();
 
         section("快捷管理");
         homePair(
@@ -307,6 +320,138 @@ public final class HubActivity extends Activity {
         row.addView(second, new LinearLayout.LayoutParams(0, -1, 1));
         add(content, row, 8);
         animateIn(row, 8, delay);
+    }
+
+    private void showHomeAnalytics() {
+        LinearLayout rows = column();
+        content.addView(rows);
+        if (session == null) {
+            add(rows, card("Umami 与 Bing", "访问量与搜索表现 · 登录后查看数据", () -> open(Page.ANALYTICS)), 8);
+            return;
+        }
+        TextView loading = text("正在读取统计数据…", 14, MUTED, false);
+        add(rows, loading, 8);
+        api("/api/analytics", HubApi.object(), reply -> {
+            rows.removeAllViews();
+            JSONObject umami = reply.optJSONObject("umami");
+            String visits = available(umami) ? "近 7 天页面浏览 " + count(umami, "pageviews") : analyticsStatus(umami);
+            JSONObject bing = reply.optJSONObject("bing");
+            JSONObject primary = selectedBingSite(bing, 0);
+            JSONObject window = bingWindow(primary, "7d");
+            String traffic = window == null ? analyticsStatus(primary == null ? bing : primary)
+                : "点击 " + count(window, "clicks") + " · 展示 " + count(window, "impressions") +
+                    " · 截至 " + date(window.optLong("endAt"), ZoneId.of("UTC"));
+            add(rows, card("Umami · 博客访问", visits, () -> open(Page.ANALYTICS)), 8);
+            add(rows, card("Bing · 主站搜索", traffic, () -> open(Page.ANALYTICS)), 8);
+            animateIn(rows, 7);
+        }, failure -> {
+            rows.removeAllViews();
+            add(rows, card("Umami 与 Bing", failure, () -> open(Page.ANALYTICS)), 8);
+        });
+    }
+
+    private void showAnalytics() {
+        content.addView(action("← 返回首页", () -> open(Page.HOME)));
+        section("数据概览");
+        LinearLayout reports = column();
+        add(content, reports, 8);
+        add(content, link("Umami 大盘", "umami.yaoxi.wiki", "https://umami.yaoxi.wiki"), 10);
+        add(content, link("Bing 大盘", "bing.yaoxi.wiki", "https://bing.yaoxi.wiki"), 8);
+        if (session == null) {
+            reports.addView(card("登录后查看统计", "前往账号统一中心", () -> open(Page.ACCOUNT)));
+            return;
+        }
+
+        TextView loading = text("正在读取统计数据…", 14, MUTED, false);
+        reports.addView(loading);
+        api("/api/analytics", HubApi.object(), reply -> {
+            reports.removeAllViews();
+            JSONObject umami = reply.optJSONObject("umami");
+            String detail = analyticsStatus(umami);
+            if (available(umami)) {
+                ZoneId zone = ZoneId.of("Asia/Shanghai");
+                detail = umami.optString("name") + " · 近 7 天\n" +
+                    "页面浏览 " + count(umami, "pageviews") + " · 访客 " + count(umami, "visitors") +
+                    " · 会话 " + count(umami, "visits") + "\n" +
+                    date(umami.optLong("startAt"), zone) + " 至 " + date(umami.optLong("endAt"), zone);
+            }
+            reports.addView(card("Umami", detail, null));
+
+            LinearLayout bingReport = column();
+            add(reports, bingReport, 8);
+            showBing(bingReport, reply.optJSONObject("bing"));
+            animateIn(reports, 7);
+        }, loading::setText);
+    }
+
+    private void showBing(LinearLayout report, JSONObject bing) {
+        report.removeAllViews();
+        JSONArray sites = bing == null ? null : bing.optJSONArray("sites");
+        if (!available(bing) || sites == null || sites.length() == 0) {
+            report.addView(card("Bing", analyticsStatus(bing), null));
+            return;
+        }
+
+        if (bingSiteIndex < 0 || bingSiteIndex >= sites.length()) bingSiteIndex = 0;
+        JSONObject chosen = sites.optJSONObject(bingSiteIndex);
+        String name = chosen.optString("name");
+        boolean month = "28d".equals(bingPeriod);
+        report.addView(action(name + " · 选择站点", () -> {
+            String[] names = new String[sites.length()];
+            for (int index = 0; index < names.length; index++) names[index] = sites.optJSONObject(index).optString("name");
+            new AlertDialog.Builder(this).setTitle("选择 Bing 站点")
+                .setSingleChoiceItems(names, bingSiteIndex, (dialog, index) -> {
+                    bingSiteIndex = index;
+                    dialog.dismiss();
+                    showBing(report, bing);
+                }).setNegativeButton("取消", null).show();
+        }));
+        add(report, action(month ? "最近 28 天报表 · 切换" : "最近 7 天报表 · 切换", () -> {
+            bingPeriod = month ? "7d" : "28d";
+            showBing(report, bing);
+        }), 6);
+
+        JSONObject window = bingWindow(chosen, bingPeriod);
+        String detail = analyticsStatus(chosen);
+        if (window != null) {
+            ZoneId utc = ZoneId.of("UTC");
+            String percentage = window.isNull("ctr") ? "—" : String.format(Locale.US, "%.2f%%", window.optDouble("ctr"));
+            detail = "点击 " + count(window, "clicks") + " · 展示 " + count(window, "impressions") +
+                " · 点击率 " + percentage + "\n" +
+                date(window.optLong("startAt"), utc) + " 至 " + date(window.optLong("endAt"), utc);
+        }
+        add(report, card("Bing · 搜索表现", detail, null), 6);
+    }
+
+    private JSONObject selectedBingSite(JSONObject source, int index) {
+        JSONArray sites = source == null ? null : source.optJSONArray("sites");
+        return sites == null ? null : sites.optJSONObject(index);
+    }
+
+    private JSONObject bingWindow(JSONObject site, String period) {
+        JSONObject periods = site == null ? null : site.optJSONObject("periods");
+        return periods == null ? null : periods.optJSONObject(period);
+    }
+
+    private boolean available(JSONObject source) {
+        return source != null && "available".equals(source.optString("status"));
+    }
+
+    private String analyticsStatus(JSONObject source) {
+        String status = source == null ? "" : source.optString("status");
+        return switch (status) {
+            case "not-configured" -> "服务端尚未配置数据源";
+            case "no-data" -> "上游还没有此站点的报表";
+            default -> "暂时无法读取统计数据";
+        };
+    }
+
+    private String count(JSONObject source, String key) {
+        return source.isNull(key) ? "—" : NumberFormat.getIntegerInstance().format(source.optLong(key));
+    }
+
+    private String date(long millis, ZoneId zone) {
+        return Instant.ofEpochMilli(millis).atZone(zone).toLocalDate().toString();
     }
 
     private void showWork() {

@@ -7,6 +7,6 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.mjs",
-    "check": "node --check server.mjs && node --check callback.js"
+    "check": "node --check server.mjs && node --check analytics.mjs && node --check callback.js"
   }
 }

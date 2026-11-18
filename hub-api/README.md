@@ -15,6 +15,8 @@ Android「工作台」和「消息」可以直接调用公开 GitHub API。启�
 | `HUB_SSO_HANDSHAKE_SECRET` | 自建环境与统一账号服务约定的握手密钥 |
 | `TENCENTCLOUD_SECRET_ID`、`TENCENTCLOUD_SECRET_KEY` | 专用 CAM 子账号凭据，限制为下列 API 所需权限和资源 |
 | `HUB_GITHUB_TOKEN` | 可选。由 `yaoxiovo` 授权，限定可读取的仓库元数据与 Actions |
+| `HUB_UMAMI_SHARE_ID` | 博客 Umami 的只读共享配置，用于读取近 7 天聚合流量 |
+| `HUB_BING_API_KEY` | Bing Webmaster API 密钥，用于读取绑定站点的点击和展示统计 |
 | `HOST`、`PORT` | 默认监听 `127.0.0.1:8788` |
 
 DNSPod 使用 `DescribeDomainList`、`DescribeRecordLineList`、`DescribeRecordList`、`CreateRecord`、`ModifyRecord`、`ModifyRecordStatus`。EdgeOne 使用 `DescribeZones`、`DescribeAccelerationDomains`、`DescribeDnsRecords`、`CreateDnsRecord`、`ModifyDnsRecords`、`ModifyDnsRecordsStatus`、`CreatePurgeTask` 和 `DescribePurgeTasks`。实际写入以专用账号权限为准。

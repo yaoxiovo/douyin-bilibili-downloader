@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { fetchAnalytics } from './analytics.mjs';
 
 const env = process.env;
 const identity = 'https://account.yaoxi.wiki';
@@ -123,6 +124,7 @@ function note(title, result) {
 }
 
 const operations = {
+  analytics: fetchAnalytics,
   repositories: async data => {
     const page = Math.floor(offset(data) / 100) + 1;
     const path = env.HUB_GITHUB_TOKEN
