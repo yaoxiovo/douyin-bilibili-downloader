@@ -2,8 +2,8 @@
 
 | 项目 | 源码 | 构建与部署 |
 | --- | --- | --- |
-| YaoXi Hub Android | [`android/hub`](android/hub) | [Hub CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/yaoxi-hub.yml) · [Hub APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/tag/yaoxi-hub-v0.2.0) |
-| YaoXi Hub API | [`hub-api`](hub-api) | [自建部署文档](hub-api/README.md) |
+| Yaoxi Hub Android | [`android/hub`](android/hub) | [Hub CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/yaoxi-hub.yml) · [Hub APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/tag/yaoxi-hub-v0.3.0) |
+| Yaoxi Hub API | [`hub-api`](hub-api) | [自建部署文档](hub-api/README.md) |
 | 抖音 / B站 下载器 | [Android 模块](android/app) · [Web 和 CLI](#网页版推荐) · [Workers](worker) | [下载器 CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/build-apk.yml) · [下载器 APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/latest) |
 
 APK 由 GitHub Actions 远端构建。Hub 使用 `yaoxi-hub-v*` 标签，从 `android/hub/build.gradle` 读取 `versionName`。更新版本号并提交到 `main`，且独立 API 检查与 Android 构建都通过后，工作流会自动发布新版本号对应的 APK。下载器的正式版本使用 `v*` 标签。两个工作流分别上传各自的 APK。

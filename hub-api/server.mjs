@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
 const env = process.env;
-const identity = 'https://account.yaoxiovo.cn';
+const identity = 'https://account.yaoxi.wiki';
 const origin = env.HUB_PUBLIC_ORIGIN ? new URL(env.HUB_PUBLIC_ORIGIN) : null;
 const client = 'yaoxi-hub-android';
 const account = env.HUB_ACCOUNT_SUB;

@@ -26,7 +26,7 @@ if [[ -n "$release" ]]; then
   gh release edit "$tag" --draft=false --prerelease --latest=false
 else
   gh release create "$tag" "$apk" --target "$GITHUB_SHA" \
-    --title "YaoXi Hub $version" \
+    --title "Yaoxi Hub $version" \
     --notes "Android 调试版 APK。包名 com.yaoxiovo.hub。" \
     --prerelease --latest=false
 fi

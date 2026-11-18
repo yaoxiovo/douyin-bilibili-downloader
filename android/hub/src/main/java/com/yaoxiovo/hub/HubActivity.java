@@ -43,13 +43,18 @@ public final class HubActivity extends Activity {
     private static final int LINE = 0xffe6d4ba;
     private static final int SELECTED = 0xfff3d9ca;
     private static final int TAPE = 0xffebc7a0;
+    private static final int OAT = 0xfff2e0bf;
+    private static final int PEACH = 0xfff5dcd1;
+    private static final int SAGE = 0xffdbe4d1;
+    private static final int LILAC = 0xffe6deef;
+    private static final String DEFAULT_API_ORIGIN = "https://hub-api.yaoxi.wiki";
 
     private static final String[] TABS = {"首页", "工作台", "消息", "我的"};
     private static final String[] TAB_ICONS = {"⌂", "▦", "▤", "◎"};
     private final ExecutorService network = Executors.newFixedThreadPool(3);
     private final Handler clock = new Handler(Looper.getMainLooper());
     private final ArrayList<JSONObject> repositories = new ArrayList<>();
-    private String origin = "";
+    private String origin = DEFAULT_API_ORIGIN;
     private String session;
     private String accountName = "";
     private String pendingState;
@@ -74,7 +79,7 @@ public final class HubActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        origin = getPreferences(MODE_PRIVATE).getString("apiOrigin", "");
+        origin = getPreferences(MODE_PRIVATE).getString("apiOrigin", DEFAULT_API_ORIGIN);
         if (state != null) {
             page = Page.valueOf(state.getString("page", Page.HOME.name()));
             searchQuery = state.getString("query", "");
@@ -124,11 +129,7 @@ public final class HubActivity extends Activity {
         LinearLayout root = column();
         root.setBackgroundColor(BACKGROUND);
 
-        TextView brand = text("YX  ·  YaoXi Hub", 19, INK, true);
-        brand.setGravity(Gravity.CENTER_VERTICAL);
-        brand.setPadding(dp(20), 0, dp(20), 0);
-        brand.setBackgroundColor(SURFACE);
-        root.addView(brand, new LinearLayout.LayoutParams(-1, dp(56)));
+        root.addView(topBar(), new LinearLayout.LayoutParams(-1, -2));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -177,28 +178,122 @@ public final class HubActivity extends Activity {
         return bar;
     }
 
+    private LinearLayout topBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(18), dp(11), dp(18), dp(11));
+        bar.setBackgroundColor(SURFACE);
+
+        TextView mark = text("Yx", 18, SURFACE, true);
+        mark.setTypeface(Typeface.SERIF, Typeface.BOLD);
+        mark.setGravity(Gravity.CENTER);
+        mark.setBackground(shape(BLUE, 11, false));
+        mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        bar.addView(mark, new LinearLayout.LayoutParams(dp(37), dp(37)));
+
+        TextView wordmark = text("Yaoxi Hub", 20, INK, true);
+        wordmark.setTypeface(Typeface.SERIF, Typeface.BOLD);
+        LinearLayout.LayoutParams title = new LinearLayout.LayoutParams(0, -2, 1);
+        title.leftMargin = dp(11);
+        bar.addView(wordmark, title);
+
+        TextView domain = text("yaoxi.wiki ↗", 12, BLUE, true);
+        domain.setGravity(Gravity.CENTER);
+        domain.setPadding(dp(9), 0, dp(9), 0);
+        domain.setMinHeight(dp(48));
+        domain.setFocusable(true);
+        domain.setOnClickListener(view -> openBrowser("https://yaoxi.wiki"));
+        bar.addView(domain, new LinearLayout.LayoutParams(-2, -2));
+        return bar;
+    }
+
     private void showHome() {
-        LinearLayout hero = column();
-        hero.setBackground(shape(SURFACE, 18, true));
-        hero.setPadding(dp(21), dp(18), dp(21), dp(21));
-        TextView tape = text("耀西的手账", 12, INK, true);
+        LinearLayout cover = column();
+        GradientDrawable wash = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            new int[]{0xfffff7e5, 0xfff0d5b0});
+        wash.setCornerRadius(dp(20));
+        wash.setStroke(dp(1), LINE);
+        cover.setBackground(wash);
+        cover.setElevation(dp(2));
+        cover.setPadding(dp(17), dp(15), dp(17), dp(17));
+
+        TextView tape = text("Yaoxi 的手账", 13, INK, true);
         tape.setGravity(Gravity.CENTER);
         tape.setPadding(dp(12), dp(5), dp(12), dp(5));
         tape.setBackground(shape(TAPE, 4, false));
         tape.setRotation(-4);
-        hero.addView(tape, new LinearLayout.LayoutParams(-2, -2));
-        TextView headline = text("所有项目，一个入口", 28, INK, true);
+        cover.addView(tape, new LinearLayout.LayoutParams(-2, -2));
+
+        LinearLayout spread = new LinearLayout(this);
+        spread.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout note = column();
+        TextView headline = text("所有项目，\n一个入口", 28, INK, true);
         headline.setTypeface(Typeface.SERIF, Typeface.BOLD);
-        add(hero, headline, 15);
-        add(hero, text("项目入口、云服务和我的账号。", 14, MUTED, false), 7);
-        add(hero, action("翻到工作台 →", () -> open(Page.WORK)), 16);
-        content.addView(hero);
+        note.addView(headline);
+        add(note, text("站点、项目与云服务", 14, MUTED, false), 7);
+        spread.addView(note, new LinearLayout.LayoutParams(0, -2, 1));
+        if (getResources().getConfiguration().screenWidthDp >= 350 &&
+                getResources().getConfiguration().fontScale <= 1.2f) {
+            JournalArtwork artwork = new JournalArtwork(this);
+            LinearLayout.LayoutParams picture = new LinearLayout.LayoutParams(dp(132), dp(125));
+            picture.leftMargin = dp(6);
+            spread.addView(artwork, picture);
+            animateIn(artwork, 9, 85);
+        }
+        add(cover, spread, 12);
+        add(cover, action("打开工作台 →", () -> open(Page.WORK)), 13);
+        content.addView(cover);
 
         section("站点直达");
-        add(content, link("个人主页", "yaoxi.wiki", "https://yaoxi.wiki"), 8);
-        add(content, link("个人博客", "blog.yaoxi.wiki", "https://blog.yaoxi.wiki"), 8);
-        add(content, link("网站状态页", "status.yaoxi.wiki", "https://status.yaoxi.wiki"), 8);
-        add(content, link("Bing 搜索数据", "bing.yaoxi.wiki", "https://bing.yaoxi.wiki"), 8);
+        homePair(
+            homeTile("主页", "个人主页", "yaoxi.wiki", OAT, () -> openBrowser("https://yaoxi.wiki")),
+            homeTile("博客", "个人博客", "blog.yaoxi.wiki", PEACH, () -> openBrowser("https://blog.yaoxi.wiki")),
+            50);
+        homePair(
+            homeTile("状态", "网站状态页", "status.yaoxi.wiki", SAGE, () -> openBrowser("https://status.yaoxi.wiki")),
+            homeTile("数据", "Bing 搜索数据", "bing.yaoxi.wiki", LILAC, () -> openBrowser("https://bing.yaoxi.wiki")),
+            95);
+
+        section("快捷管理");
+        homePair(
+            homeTile("DNS", "DNS 解析", "腾讯云 DNSPod", SAGE, () -> open(Page.DNS)),
+            homeTile("EO", "EdgeOne", "站点与缓存", PEACH, () -> open(Page.EDGE)),
+            130);
+    }
+
+    private View homeTile(String mark, String title, String subtitle, int tone, Runnable navigate) {
+        LinearLayout tile = column();
+        tile.setPadding(dp(12), dp(11), dp(12), dp(11));
+        tile.setBackground(shape(SURFACE, 13, true));
+        tile.setMinHeight(dp(108));
+        tile.setElevation(dp(1));
+        tile.setFocusable(true);
+        tile.setOnClickListener(view -> navigate.run());
+
+        TextView tab = text(mark, 12, INK, true);
+        tab.setPadding(dp(8), dp(3), dp(8), dp(3));
+        tab.setBackground(shape(tone, 5, false));
+        tab.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        tile.addView(tab, new LinearLayout.LayoutParams(-2, -2));
+        add(tile, text(title, 16, INK, true), 7);
+        add(tile, text(subtitle, 12, MUTED, false), 3);
+        return tile;
+    }
+
+    private void homePair(View first, View second, int delay) {
+        if (getResources().getConfiguration().screenWidthDp < 350 ||
+                getResources().getConfiguration().fontScale > 1.2f) {
+            add(content, first, 8);
+            add(content, second, 8);
+            return;
+        }
+        LinearLayout row = new LinearLayout(this);
+        LinearLayout.LayoutParams left = new LinearLayout.LayoutParams(0, -1, 1);
+        left.rightMargin = dp(8);
+        row.addView(first, left);
+        row.addView(second, new LinearLayout.LayoutParams(0, -1, 1));
+        add(content, row, 8);
+        animateIn(row, 8, delay);
     }
 
     private void showWork() {
@@ -327,7 +422,7 @@ public final class HubActivity extends Activity {
         fetch(() -> HubApi.send(host, "/auth/start", null, HubApi.object()), reply -> {
             String url = reply.optString("url");
             Uri target = Uri.parse(url);
-            if (!"https".equals(target.getScheme()) || !"account.yaoxiovo.cn".equals(target.getHost())) {
+            if (!"https".equals(target.getScheme()) || !"account.yaoxi.wiki".equals(target.getHost())) {
                 toast("统一账号登录地址无效");
                 return;
             }
@@ -685,11 +780,15 @@ public final class HubActivity extends Activity {
     }
 
     private void animateIn(View view, int distance) {
+        animateIn(view, distance, 0);
+    }
+
+    private void animateIn(View view, int distance, int delay) {
         if (!ValueAnimator.areAnimatorsEnabled()) return;
         view.animate().cancel();
         view.setAlpha(0f);
         view.setTranslationY(dp(distance));
-        view.animate().alpha(1f).translationY(0f).setDuration(225)
+        view.animate().alpha(1f).translationY(0f).setStartDelay(delay).setDuration(225)
             .setInterpolator(new DecelerateInterpolator()).start();
     }
 

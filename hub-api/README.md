@@ -1,4 +1,4 @@
-# YaoXi Hub API 自建部署
+# Yaoxi Hub API 自建部署
 
 Android「工作台」和「消息」可以直接调用公开 GitHub API。启用统一登录、腾讯云功能和私有仓库时，需要独立的 Hub API。后端使用 Node.js 22.21 或更新的 22.x 版本，无第三方运行依赖。
 

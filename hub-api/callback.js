@@ -9,7 +9,7 @@ if (state && token) {
     body: JSON.stringify({ state, token })
   }).then(async reply => {
     const result = await reply.json();
-    status.textContent = result.completed ? '登录已完成，请返回 YaoXi Hub。' : result.error;
+    status.textContent = result.completed ? '登录已完成，请返回 Yaoxi Hub。' : result.error;
   }).catch(() => { status.textContent = '网络请求失败，请返回 App 重试。'; });
 } else {
   status.textContent = '登录凭据缺失，请从 App 重新开始。';
