@@ -144,7 +144,16 @@ const operations = {
     return { items, githubError };
   },
   domains: data => tencent('dnspod', 'DescribeDomainList', { Offset: offset(data), Limit: 50 }),
-  lines: data => tencent('dnspod', 'DescribeRecordLineList', dnsDomain(data)),
+  lines: async data => {
+    const domain = dnsDomain(data);
+    for (let offset = 0; ; offset += 50) {
+      const result = await tencent('dnspod', 'DescribeDomainList', { Keyword: domain.Domain, Offset: offset, Limit: 50 });
+      const items = result.DomainList ?? [];
+      const match = items.find(item => item.DomainId === domain.DomainId);
+      if (match?.Grade) return tencent('dnspod', 'DescribeRecordLineList', { ...domain, DomainGrade: match.Grade });
+      if (items.length < 50) throw new ApiError(404, '未找到域名套餐');
+    }
+  },
   records: data => tencent('dnspod', 'DescribeRecordList', { ...dnsDomain(data), Offset: offset(data), Limit: 50 }),
   recordSave: async data => {
     requireValue(typeof data.name === 'string' && data.name.length > 0 && data.name.length <= 253 &&

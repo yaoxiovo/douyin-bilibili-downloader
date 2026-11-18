@@ -2,6 +2,8 @@
 
 Android「工作台」和「消息」可以直接调用公开 GitHub API。启用统一登录、腾讯云功能和私有仓库时，需要独立的 Hub API。后端使用 Node.js 22.21 或更新的 22.x 版本，无第三方运行依赖。
 
+当前生产入口为 [hub-api.yaoxi.wiki](https://hub-api.yaoxi.wiki/auth/callback)。Android 的 Hub API 地址填写 `https://hub-api.yaoxi.wiki`。
+
 ## 服务端配置
 
 通过运行环境的私密配置设置以下变量，或将 [`.env.example`](.env.example) 复制为 `.env` 后在部署服务器上填入。将 Hub API 部署到统一账号中心允许的 HTTPS 子域名，并在统一账号中心登记客户端 `yaoxi-hub-android`，回调地址为该域名下的 `/auth/callback`。
