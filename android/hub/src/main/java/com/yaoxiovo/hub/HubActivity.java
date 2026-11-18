@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.animation.ValueAnimator;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.ResolveInfo;
 import android.graphics.Typeface;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -23,6 +24,11 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.browser.customtabs.CustomTabColorSchemeParams;
+import androidx.browser.customtabs.CustomTabsClient;
+import androidx.browser.customtabs.CustomTabsIntent;
+import androidx.browser.customtabs.CustomTabsService;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -83,6 +89,9 @@ public final class HubActivity extends Activity {
         if (state != null) {
             page = Page.valueOf(state.getString("page", Page.HOME.name()));
             searchQuery = state.getString("query", "");
+            pendingState = state.getString("signInState");
+            pendingCode = state.getString("signInCode");
+            launchedSignIn = pendingState != null && pendingCode != null;
         }
         render();
     }
@@ -104,6 +113,10 @@ public final class HubActivity extends Activity {
     protected void onSaveInstanceState(Bundle state) {
         state.putString("page", page.name());
         state.putString("query", searchQuery);
+        if (launchedSignIn) {
+            state.putString("signInState", pendingState);
+            state.putString("signInCode", pendingCode);
+        }
         super.onSaveInstanceState(state);
     }
 
@@ -202,7 +215,7 @@ public final class HubActivity extends Activity {
         domain.setPadding(dp(9), 0, dp(9), 0);
         domain.setMinHeight(dp(48));
         domain.setFocusable(true);
-        domain.setOnClickListener(view -> openBrowser("https://yaoxi.wiki"));
+        domain.setOnClickListener(view -> openInApp("https://yaoxi.wiki"));
         bar.addView(domain, new LinearLayout.LayoutParams(-2, -2));
         return bar;
     }
@@ -246,12 +259,12 @@ public final class HubActivity extends Activity {
 
         section("站点直达");
         homePair(
-            homeTile("主页", "个人主页", "yaoxi.wiki", OAT, () -> openBrowser("https://yaoxi.wiki")),
-            homeTile("博客", "个人博客", "blog.yaoxi.wiki", PEACH, () -> openBrowser("https://blog.yaoxi.wiki")),
+            homeTile("主页", "个人主页", "yaoxi.wiki", OAT, () -> openInApp("https://yaoxi.wiki")),
+            homeTile("博客", "个人博客", "blog.yaoxi.wiki", PEACH, () -> openInApp("https://blog.yaoxi.wiki")),
             50);
         homePair(
-            homeTile("状态", "网站状态页", "status.yaoxi.wiki", SAGE, () -> openBrowser("https://status.yaoxi.wiki")),
-            homeTile("数据", "Bing 搜索数据", "bing.yaoxi.wiki", LILAC, () -> openBrowser("https://bing.yaoxi.wiki")),
+            homeTile("状态", "网站状态页", "status.yaoxi.wiki", SAGE, () -> openInApp("https://status.yaoxi.wiki")),
+            homeTile("数据", "Bing 搜索数据", "bing.yaoxi.wiki", LILAC, () -> openInApp("https://bing.yaoxi.wiki")),
             95);
 
         section("快捷管理");
@@ -382,7 +395,7 @@ public final class HubActivity extends Activity {
         heading("账号统一中心", "项目登录与服务授权");
         section("我的账号");
         if (session == null) {
-            add(content, card("OAuth2.0-yaoxi", origin.isEmpty() ? "请先设置 Hub API 地址" : "使用浏览器登录统一账号", this::signIn), 8);
+            add(content, card("OAuth2.0-yaoxi", origin.isEmpty() ? "请先设置 Hub API 地址" : "在安全标签页登录统一账号", this::signIn), 8);
             if (pendingState != null) add(content, action("检查登录结果", () -> checkSignIn(1)), 8);
         } else {
             add(content, card(accountName, "统一账号", null), 8);
@@ -422,14 +435,21 @@ public final class HubActivity extends Activity {
         fetch(() -> HubApi.send(host, "/auth/start", null, HubApi.object()), reply -> {
             String url = reply.optString("url");
             Uri target = Uri.parse(url);
-            if (!"https".equals(target.getScheme()) || !"account.yaoxi.wiki".equals(target.getHost())) {
+            if (!HubBrowserActivity.isHttps(target) || !"account.yaoxi.wiki".equals(target.getHost()) ||
+                    (target.getPort() != -1 && target.getPort() != 443) ||
+                    !"/accounts-login.html".equals(target.getPath())) {
                 toast("统一账号登录地址无效");
                 return;
             }
             pendingState = reply.optString("state");
             pendingCode = reply.optString("code");
-            launchedSignIn = true;
-            openBrowser(url);
+            if (openSignInTab(target)) {
+                launchedSignIn = true;
+            } else {
+                pendingState = null;
+                pendingCode = null;
+                launchedSignIn = false;
+            }
         }, this::toast);
     }
 
@@ -449,7 +469,7 @@ public final class HubActivity extends Activity {
                         if (retries > 1) clock.postDelayed(() -> checkSignIn(retries - 1), 1500);
                         else {
                             if (page == Page.ACCOUNT) render();
-                            toast("请完成浏览器登录后再检查");
+                            toast("请在安全标签页完成登录后再检查");
                         }
                     } else {
                         session = reply.optString("session", null);
@@ -763,19 +783,42 @@ public final class HubActivity extends Activity {
     }
 
     private View link(String title, String subtitle, String url) {
-        return card(title + " ↗", subtitle, () -> openBrowser(url));
+        return card(title + " ↗", subtitle, () -> openInApp(url));
     }
 
-    private void openBrowser(String url) {
+    private void openInApp(String url) {
         Uri uri = Uri.parse(url);
-        if (!"https".equals(uri.getScheme()) || uri.getHost() == null) {
-            toast("链接无效");
+        if (!HubBrowserActivity.isHttps(uri)) {
+            toast("仅支持安全的 HTTPS 链接");
             return;
         }
+        startActivity(new Intent(this, HubBrowserActivity.class).setData(uri));
+    }
+
+    private boolean openSignInTab(Uri url) {
+        Intent service = new Intent(CustomTabsService.ACTION_CUSTOM_TABS_CONNECTION);
+        ArrayList<String> packages = new ArrayList<>();
+        for (ResolveInfo info : getPackageManager().queryIntentServices(service, 0)) {
+            packages.add(info.serviceInfo.packageName);
+        }
+        String provider = CustomTabsClient.getPackageName(this, packages);
+        if (provider == null) {
+            toast("当前设备没有支持安全标签页的浏览器，无法登录统一账号");
+            return false;
+        }
+        CustomTabsIntent tab = new CustomTabsIntent.Builder()
+            .setDefaultColorSchemeParams(new CustomTabColorSchemeParams.Builder()
+                .setToolbarColor(SURFACE).build())
+            .setShowTitle(true)
+            .setShareState(CustomTabsIntent.SHARE_STATE_OFF)
+            .build();
+        tab.intent.setPackage(provider);
         try {
-            startActivity(new Intent(Intent.ACTION_VIEW, uri));
+            tab.launchUrl(this, url);
+            return true;
         } catch (ActivityNotFoundException exception) {
-            toast("设备上没有可打开链接的应用");
+            toast("无法打开账号安全标签页");
+            return false;
         }
     }
 
