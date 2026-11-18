@@ -1,0 +1,104 @@
+name: YaoXi Hub CI
+
+on:
+  pull_request:
+    paths:
+      - 'android/hub/**'
+      - 'android/*.gradle'
+      - 'android/gradle.properties'
+      - 'android/gradle/wrapper/**'
+      - 'android/gradlew'
+      - 'hub-api/**'
+      - 'scripts/ci/**'
+      - '.github/workflows/yaoxi-hub.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'android/hub/**'
+      - 'android/*.gradle'
+      - 'android/gradle.properties'
+      - 'android/gradle/wrapper/**'
+      - 'android/gradlew'
+      - 'hub-api/**'
+      - 'scripts/ci/**'
+      - '.github/workflows/yaoxi-hub.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: Check Hub API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: hub-api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: hub-api/.node-version
+      - run: npm run check
+
+  android:
+    name: Build Hub APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: gradle
+      - id: version
+        name: Read Hub version
+        shell: bash
+        run: |
+          version=$(bash scripts/ci/hub-version.sh)
+          printf 'value=%s\n' "$version" >> "$GITHUB_OUTPUT"
+      - name: Build debug APK
+        working-directory: android
+        run: bash gradlew :hub:assembleDebug --stacktrace
+      - name: Name APK
+        run: cp android/hub/build/outputs/apk/debug/hub-debug.apk yaoxi-hub-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yaoxi-hub-apk
+          path: yaoxi-hub-debug.apk
+          retention-days: 30
+          if-no-files-found: error
+
+  publish:
+    name: Publish Hub tag and APK
+    if: github.ref == 'refs/heads/main'
+    needs: [api, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: hub-release-${{ needs.android.outputs.version }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: yaoxi-hub-apk
+          path: output_apks
+      - name: Publish version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HUB_VERSION: ${{ needs.android.outputs.version }}
+        run: bash scripts/ci/publish-hub.sh "$HUB_VERSION" output_apks/yaoxi-hub-debug.apk

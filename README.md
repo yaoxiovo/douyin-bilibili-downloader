@@ -1,4 +1,14 @@
-# 快捷爬取 · 抖音 / B站 源视频下载工具
+# YaoXi 项目仓库
+
+| 项目 | 源码 | 构建与部署 |
+| --- | --- | --- |
+| YaoXi Hub Android | [`android/hub`](android/hub) | [Hub CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/yaoxi-hub.yml) · [Hub APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/tag/yaoxi-hub-v0.2.0) |
+| YaoXi Hub API | [`hub-api`](hub-api) | [自建部署文档](hub-api/README.md) |
+| 抖音 / B站 下载器 | [Android 模块](android/app) · [Web 和 CLI](#网页版推荐) · [Workers](worker) | [下载器 CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/build-apk.yml) · [下载器 APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/latest) |
+
+APK 由 GitHub Actions 远端构建。Hub 使用 `yaoxi-hub-v*` 标签，从 `android/hub/build.gradle` 读取 `versionName`。更新版本号并提交到 `main`，且独立 API 检查与 Android 构建都通过后，工作流会自动发布新版本号对应的 APK。下载器的正式版本使用 `v*` 标签。两个工作流分别上传各自的 APK。
+
+## 快捷爬取 · 抖音 / B站 源视频下载工具
 
 [![Build & Release Android APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/build-apk.yml/badge.svg)](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/build-apk.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/yaoxiovo/douyin-bilibili-downloader?color=blue&label=APK%20Release)](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases)
@@ -24,12 +34,7 @@
 ### 下载与安装
 1. **正式版 Release 下载**：前往 [Releases 页面](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases) 下载最新签名的 `douyin-bilibili-downloader.apk`。
 2. **CI 自动化预览版**：由 GitHub Actions 流水线自动化构建，进入 [Actions 页面](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions) 选择最近的流水线即可在 Artifacts 中下载测试包。
-3. **本地源码编译**：
-   ```bash
-   cd android
-   ./gradlew assembleDebug
-   # 输出 APK 路径：android/app/build/outputs/apk/debug/app-debug.apk
-   ```
+3. **按需构建**：可在下载器工作流页面使用 **Run workflow** 触发远端构建。
 
 ---
 

@@ -1,153 +1,88 @@
 name: Build & Release Android APK
 
 on:
+  pull_request:
+    paths:
+      - 'android/app/**'
+      - 'android/*.gradle'
+      - 'android/gradle.properties'
+      - 'android/gradle/wrapper/**'
+      - 'android/gradlew'
+      - '.github/workflows/build-apk.yml'
   push:
-    branches: [ "main" ]
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'android/app/**'
+      - 'android/*.gradle'
+      - 'android/gradle.properties'
+      - 'android/gradle/wrapper/**'
+      - 'android/gradlew'
+      - '.github/workflows/build-apk.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     name: Build Android APK
     runs-on: ubuntu-latest
-
+    timeout-minutes: 20
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: Set up JDK 17 (Temurin)
-        uses: actions/setup-java@v5
+          persist-credentials: false
+      - uses: actions/setup-java@v5
         with:
           java-version: '17'
-          distribution: 'temurin'
-          cache: 'gradle'
-
-      - name: Setup Android SDK Environment
+          distribution: temurin
+          cache: gradle
+      - name: Build downloader APKs
+        working-directory: android
+        shell: bash
         run: |
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          if command -v sdkmanager >/dev/null 2>&1; then
-            yes | sdkmanager --licenses || true
-          elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          bash gradlew :app:assembleDebug --stacktrace
+          if ! bash gradlew :app:assembleRelease --stacktrace; then
+            echo "::warning::Downloader release variant failed; the debug APK is available."
           fi
-
-      - name: Grant execute permission for gradlew
+      - name: Package downloader APKs
+        shell: bash
         run: |
-          chmod +x android/gradlew
-
-      - name: Build APK with Gradle
-        run: |
-          cd android
-          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee /tmp/gradle_debug.log || {
-            echo "::error::Gradle assembleDebug failed"
-            tail -n 120 /tmp/gradle_debug.log
-            exit 1
-          }
-          ./gradlew :app:assembleRelease --stacktrace || true
-
-      - name: Prepare APK for Release & Artifacts
-        run: |
-          # 寻找生成的 APK 并复制为标准命名
+          source_dir=android/app/build/outputs/apk
           mkdir -p output_apks
-          if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk douyin-bilibili-downloader.apk
-            cp android/app/build/outputs/apk/release/app-release.apk output_apks/douyin-bilibili-downloader-release.apk
-          elif [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk douyin-bilibili-downloader.apk
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk output_apks/douyin-bilibili-downloader-release-unsigned.apk
-          fi
-          
-          if [ -f "android/app/build/outputs/apk/debug/app-debug.apk" ]; then
-            if [ ! -f "douyin-bilibili-downloader.apk" ]; then
-              cp android/app/build/outputs/apk/debug/app-debug.apk douyin-bilibili-downloader.apk
+          cp "$source_dir/debug/app-debug.apk" output_apks/douyin-bilibili-downloader-debug.apk
+          if [[ -f "$source_dir/release/app-release.apk" ]]; then
+            cp "$source_dir/release/app-release.apk" output_apks/douyin-bilibili-downloader-release.apk
+            cp "$source_dir/release/app-release.apk" output_apks/douyin-bilibili-downloader.apk
+          else
+            cp "$source_dir/debug/app-debug.apk" output_apks/douyin-bilibili-downloader.apk
+            if [[ -f "$source_dir/release/app-release-unsigned.apk" ]]; then
+              cp "$source_dir/release/app-release-unsigned.apk" output_apks/douyin-bilibili-downloader-release-unsigned.apk
             fi
-            cp android/app/build/outputs/apk/debug/app-debug.apk output_apks/douyin-bilibili-downloader-debug.apk
           fi
-          
-          ls -lh douyin-bilibili-downloader.apk || true
-          ls -lh output_apks/ || true
-
-      - name: Upload APK Artifacts
+      - name: Upload downloader APKs
         uses: actions/upload-artifact@v4
         with:
           name: douyin-bilibili-downloader-apk
-          path: |
-            douyin-bilibili-downloader.apk
-            output_apks/*.apk
+          path: output_apks/*.apk
           retention-days: 30
-
-      - name: Build YaoXi Hub APK
-        working-directory: android
-        run: ./gradlew :hub:assembleDebug --stacktrace
-
-      - name: Package YaoXi Hub APK
-        run: cp android/hub/build/outputs/apk/debug/hub-debug.apk output_apks/yaoxi-hub-debug.apk
-
-      - name: Upload YaoXi Hub APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: yaoxi-hub-apk
-          path: output_apks/yaoxi-hub-debug.apk
           if-no-files-found: error
-          retention-days: 30
 
-      - name: Publish YaoXi Hub version tag and release
-        shell: bash
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version=$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+'([^']+)'[[:space:]]*$/\1/p" android/hub/build.gradle)
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Expected a major.minor.patch Hub versionName"
-            exit 1
-          fi
-
-          tag="yaoxi-hub-v$version"
-          apk="output_apks/yaoxi-hub-debug.apk"
-          release=$(gh release view "$tag" --json isDraft,targetCommitish,assets 2>/dev/null || true)
-          if [[ -n "$release" ]] && jq -e '.isDraft == false' <<< "$release" >/dev/null; then
-            jq -e --arg asset "${apk##*/}" '.assets | any(.name == $asset)' <<< "$release" >/dev/null
-            echo "$tag is already published."
-            exit 0
-          fi
-
-          tag_commit=$(git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}" | tail -n 1 | cut -f 1)
-          if [[ -n "$tag_commit" && "$tag_commit" != "$GITHUB_SHA" ]]; then
-            echo "::error::Existing tag $tag points to a different commit"
-            exit 1
-          fi
-
-          if [[ -n "$release" ]]; then
-            if [[ -z "$tag_commit" ]] && ! jq -e --arg sha "$GITHUB_SHA" '.targetCommitish == $sha' <<< "$release" >/dev/null; then
-              echo "::error::Existing draft $tag targets a different commit"
-              exit 1
-            fi
-            gh release upload "$tag" "$apk" --clobber
-            gh release edit "$tag" --draft=false --prerelease --latest=false
-          else
-            gh release create "$tag" "$apk" --target "$GITHUB_SHA" \
-              --title "YaoXi Hub $version" \
-              --notes "Android 调试版 APK。包名 com.yaoxiovo.hub。" \
-              --prerelease --latest=false
-          fi
-
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: douyin-bilibili-downloader-apk
+          path: output_apks
+      - uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.ref_name }}
-          files: |
-            douyin-bilibili-downloader.apk
-            output_apks/*.apk
+          files: output_apks/*.apk
+          fail_on_unmatched_files: true
           generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

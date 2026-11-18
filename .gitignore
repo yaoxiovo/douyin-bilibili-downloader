@@ -13,3 +13,10 @@ local.properties
 *.ap_
 *.aab
 output_apks/
+
+# Runtime configuration and signing keys
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore

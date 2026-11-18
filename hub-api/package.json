@@ -1,0 +1,12 @@
+{
+  "name": "yaoxi-hub-api",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.21.0 <23"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "check": "node --check server.mjs && node --check callback.js"
+  }
+}
