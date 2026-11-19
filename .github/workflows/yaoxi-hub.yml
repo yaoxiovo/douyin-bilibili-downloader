@@ -50,6 +50,7 @@ jobs:
     timeout-minutes: 20
     outputs:
       version: ${{ steps.version.outputs.value }}
+      signed: ${{ steps.sign.outputs.available }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -88,9 +89,41 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      - id: sign
+        name: Build signed release APK
+        if: github.ref == 'refs/heads/main'
+        working-directory: android
+        env:
+          HUB_KEYSTORE_BASE64: ${{ secrets.HUB_KEYSTORE_BASE64 }}
+          HUB_KEYSTORE_PASSWORD: ${{ secrets.HUB_KEYSTORE_PASSWORD }}
+          HUB_KEY_ALIAS: ${{ secrets.HUB_KEY_ALIAS }}
+          HUB_KEY_PASSWORD: ${{ secrets.HUB_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -z "$HUB_KEYSTORE_BASE64$HUB_KEYSTORE_PASSWORD$HUB_KEY_ALIAS$HUB_KEY_PASSWORD" ]]; then
+            echo "Release signing is not configured. The debug APK is available in Artifacts."
+            exit 0
+          fi
+          : "${HUB_KEYSTORE_BASE64:?}" "${HUB_KEYSTORE_PASSWORD:?}" "${HUB_KEY_ALIAS:?}" "${HUB_KEY_PASSWORD:?}"
+          umask 077
+          export HUB_KEYSTORE_FILE="$(mktemp)"
+          trap 'rm -f "$HUB_KEYSTORE_FILE"' EXIT
+          printf '%s' "$HUB_KEYSTORE_BASE64" | base64 --decode > "$HUB_KEYSTORE_FILE"
+          unset HUB_KEYSTORE_BASE64
+          bash gradlew :hub:assembleRelease --stacktrace
+          cp hub/build/outputs/apk/release/hub-release.apk ../yaoxi-hub.apk
+          echo 'available=true' >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        if: steps.sign.outputs.available == 'true'
+        with:
+          name: yaoxi-hub-release-apk
+          path: yaoxi-hub.apk
+          retention-days: 30
+          if-no-files-found: error
+
   publish:
     name: Publish Hub tag and APK
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.android.outputs.signed == 'true'
     needs: [api, android]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -105,11 +138,11 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          name: yaoxi-hub-apk
+          name: yaoxi-hub-release-apk
           path: output_apks
       - name: Publish version
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           HUB_VERSION: ${{ needs.android.outputs.version }}
-        run: bash scripts/ci/publish-hub.sh "$HUB_VERSION" output_apks/yaoxi-hub-debug.apk
+        run: bash scripts/ci/publish-hub.sh "$HUB_VERSION" output_apks/yaoxi-hub.apk

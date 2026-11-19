@@ -35,6 +35,7 @@ public final class HubActivity extends Activity {
 
     private final ExecutorService network = Executors.newFixedThreadPool(3);
     private WebView browser;
+    private HubSessionStore sessionStore;
     private String origin;
     private String session;
     private String owner = "";
@@ -45,6 +46,10 @@ public final class HubActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         origin = getPreferences(MODE_PRIVATE).getString("apiOrigin", DEFAULT_ORIGIN);
+        sessionStore = new HubSessionStore(getPreferences(MODE_PRIVATE));
+        JSONObject savedSession = sessionStore.load(origin);
+        session = savedSession.optString("session", null);
+        owner = savedSession.optString("account");
         if (state != null) {
             pendingState = state.getString("signInState");
             pendingCode = state.getString("signInCode");
@@ -144,7 +149,14 @@ public final class HubActivity extends Activity {
                     if (!OPERATIONS.contains(operation)) throw new IllegalArgumentException("操作不可用");
                     if (activeSession == null) throw new IllegalArgumentException("请先登录");
                     JSONObject data = payload.getJSONObject("data");
-                    fetch(() -> HubApi.send(activeOrigin, "/api/" + operation, activeSession, data), success, failed);
+                    fetch(() -> HubApi.send(activeOrigin, "/api/" + operation, activeSession, data), success, error -> {
+                        if (error instanceof HubApi.HttpError http && http.status == 401 &&
+                            activeOrigin.equals(origin) && activeSession.equals(session)) {
+                            clearSession();
+                            browser.evaluateJavascript("window.dispatchEvent(new Event('hub-session-expired'))", null);
+                        }
+                        failed.accept(error);
+                    });
                 }
                 case "signIn" -> fetch(() -> HubApi.send(activeOrigin, "/auth/start", null, HubApi.object()), data -> {
                     if (!activeOrigin.equals(origin)) {
@@ -176,6 +188,7 @@ public final class HubActivity extends Activity {
                         if (state.equals(pendingState) && !data.optBoolean("pending")) {
                             session = data.optString("session", null);
                             owner = data.optString("account");
+                            if (session != null) sessionStore.save(origin, session, owner);
                             pendingState = null;
                             pendingCode = null;
                         }
@@ -202,6 +215,7 @@ public final class HubActivity extends Activity {
     }
 
     private void clearSession() {
+        sessionStore.clear();
         session = null;
         owner = "";
         pendingState = null;

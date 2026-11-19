@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { openState } from './state.mjs';
 import { fetchAnalytics } from './analytics.mjs';
 import { projectOperations, publicStatus, publicWallpapers, startMonitoring } from './projects.mjs';
 
@@ -10,8 +11,8 @@ const origin = env.HUB_PUBLIC_ORIGIN ? new URL(env.HUB_PUBLIC_ORIGIN) : null;
 const client = 'yaoxi-hub-android';
 const account = env.HUB_ACCOUNT_SUB;
 const handshakes = new Map();
-const sessions = new Map();
-const notifications = [];
+const state = openState(env.HUB_STATE_DIR || env.STATE_DIRECTORY);
+setInterval(() => state.pruneSessions(), 60_000).unref();
 const callback = await readFile(new URL('./callback.html', import.meta.url));
 const pairingTtl = 5 * 60_000;
 const upstreamTimeout = () => AbortSignal.timeout(15_000);
@@ -119,8 +120,7 @@ const edgeRecordId = data => {
 const offset = data => Number.isSafeInteger(data.offset) && data.offset >= 0 ? data.offset : 0;
 
 function note(title, result) {
-  notifications.unshift({ title, detail: result.JobId || result.RequestId || '', time: new Date().toISOString() });
-  notifications.length = Math.min(notifications.length, 50);
+  state.addNotification(title, result.JobId || result.RequestId || '', new Date().toISOString());
   return result;
 }
 
@@ -139,7 +139,7 @@ const operations = {
   },
   messages: async () => {
     const alerts = await projectAlerts();
-    const items = [...notifications, ...alerts].sort((left, right) => right.time.localeCompare(left.time));
+    const items = [...state.notifications(), ...alerts].sort((left, right) => right.time.localeCompare(left.time));
     return { items };
   },
   domains: data => tencent('dnspod', 'DescribeDomainList', { Offset: offset(data), Limit: 50 }),
@@ -241,7 +241,7 @@ function response(res, status, value, headers = {}) {
 
 async function route(req, res) {
   const path = new URL(req.url, 'http://localhost').pathname;
-  if (path === '/auth/callback' && req.method === 'GET') return response(res, 200, callback, {
+  if (path === '/auth/callback' && ['GET', 'HEAD'].includes(req.method)) return response(res, 200, callback, {
     'Content-Type': 'text/html; charset=utf-8',
     'Content-Security-Policy': "default-src 'none'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
   });
@@ -286,20 +286,23 @@ async function route(req, res) {
     if (typeof data.code !== 'string' || hash(data.code) !== pending.codeHash) throw new ApiError(401, '登录请求无效');
     if (!pending.token) return response(res, 200, { pending: true });
     handshakes.delete(data.state);
-    clean(sessions);
     const session = random();
-    sessions.set(hash(session), { token: pending.token, expires: pending.claims.exp * 1000 });
+    state.saveSession(hash(session), pending.token, pending.claims.exp * 1000);
     return response(res, 200, { session, account: pending.claims.sub });
   }
   const token = req.headers.authorization?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
   const key = token && hash(token);
-  const session = key && sessions.get(key);
+  const session = key && state.findSession(key);
   if (!session || session.expires <= Date.now()) throw new ApiError(401, '请先登录账号统一中心');
   if (path === '/auth/logout') {
-    sessions.delete(key);
+    state.deleteSession(key);
     return response(res, 200, { ok: true });
   }
-  const claims = await inspect(session.token);
+  const claims = await inspect(session.token).catch(error => {
+    if (error.status === 401) state.deleteSession(key);
+    throw error;
+  });
+  if (!state.findSession(key)) throw new ApiError(401, '请先登录账号统一中心');
   if (path === '/api/account') return response(res, 200, { account: claims.sub,
     tencentConfigured: Boolean(env.TENCENTCLOUD_SECRET_ID && env.TENCENTCLOUD_SECRET_KEY),
     githubPrivateConfigured: Boolean(env.HUB_GITHUB_TOKEN) });

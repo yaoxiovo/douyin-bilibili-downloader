@@ -27,6 +27,6 @@ if [[ -n "$release" ]]; then
 else
   gh release create "$tag" "$apk" --target "$GITHUB_SHA" \
     --title "Yaoxi Hub $version" \
-    --notes "Android 调试版 APK。包名 com.yaoxiovo.hub。" \
+    --notes "Android 正式签名 APK，包名 com.yaoxiovo.hub。若设备已安装旧版调试 APK，请先备份所需数据并卸载旧版。" \
     --prerelease --latest=false
 fi

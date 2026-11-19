@@ -4,6 +4,7 @@ import { Button, Card, Tabs, Input, Select, Alert, Dialog, Image as FxImage, Sta
 import { request } from './bridge.js'
 
 const tabs = [{label:'首页',value:'home'}, {label:'工作台',value:'work'}, {label:'消息',value:'messages'}, {label:'我的',value:'account'}]
+const privatePages = ['projects','project','analytics','blog','dns','records','edge','zone','edgeRecords']
 const titles = { projects:'项目详情', project:'项目详情', blog:'博客运营', status:'站点监控', analytics:'数据概览',
   dns:'DNS 解析', records:'DNS 记录', edge:'EdgeOne', zone:'EdgeOne 站点', edgeRecords:'EdgeOne 托管 DNS' }
 const sites = [
@@ -294,6 +295,15 @@ onMounted(async () => {
   await load()
 })
 window.addEventListener('hub-resume', () => poll())
+window.addEventListener('hub-session-expired', async () => {
+  try {
+    Object.assign(account, await request('info'))
+    if (signedIn.value) return
+    dialog.value = null
+    toast.value = '登录已失效，请重新登录。'
+    await load()
+  } catch (issue) { toast.value = errorText(issue) }
+})
 </script>
 
 <template>
@@ -447,7 +457,7 @@ window.addEventListener('hub-resume', () => poll())
         :description="item.Status || item.ActiveStatus" interactive @click="enter(name === 'dns' ? 'records' : 'zone',item)" />
     </template>
 
-    <template v-else-if="name === 'records' || name === 'edgeRecords'">
+    <template v-else-if="signedIn && (name === 'records' || name === 'edgeRecords')">
       <div class="row"><Button label="新增记录" @click="editRecord(null)" /><Button v-if="name === 'records'" label="查看可用线路" variant="outline" @click="possibleLines" /></div>
       <Card v-for="item in view.items || []" :key="item.RecordId" class="tile"
         :title="item.Name + ' · ' + item.Type"
@@ -457,7 +467,7 @@ window.addEventListener('hub-resume', () => poll())
       </Card>
     </template>
 
-    <template v-else-if="name === 'zone'">
+    <template v-else-if="signedIn && name === 'zone'">
       <Card :title="current.item.ZoneName" :description="'接入方式 · ' + current.item.Type">
         <div class="row"><Button label="清除 URL 缓存" @click="purgeDialog" />
           <Button v-if="current.item.Type === 'full'" label="托管 DNS" variant="outline" @click="enter('edgeRecords',current.item)" /></div>
@@ -466,7 +476,7 @@ window.addEventListener('hub-resume', () => poll())
       <Card v-for="(item,index) in view.items || []" :key="(item.DomainName || item.JobId) + index"
         :title="item.DomainName || item.Target || item.JobId" :description="item.DomainStatus || item.Status" />
     </template>
-    <Card v-if="['projects','project','analytics','blog','dns','edge'].includes(name) && !signedIn"
+    <Card v-if="privatePages.includes(name) && !signedIn"
       title="登录后查看" description="前往账号统一中心" interactive @click="enter('account',null,true)" />
     <Empty v-if="['dns','edge','records','edgeRecords','zone'].includes(name) && view.items && !view.items.length && !loading" description="暂无记录" />
     <Button v-if="view.more" label="加载更多" variant="outline" :loading="loading" @click="nextPage" />

@@ -37,7 +37,7 @@ function probe(name, url) {
     const failure = error => resolve({ name, url, status: 'unavailable',
       error: error.code || 'NETWORK_ERROR', checkedAt: Date.now() });
     const connector = request(url, { method: 'HEAD', signal: AbortSignal.timeout(6500) }, response => {
-      const expiresAt = Date.parse(response.socket.getPeerCertificate()?.valid_to || '');
+      const expiresAt = Date.parse(response.socket?.getPeerCertificate()?.valid_to || '');
       const latency = Math.round(performance.now() - started);
       resolve({ name, url, status: response.statusCode >= 200 && response.statusCode < 400
         ? latency > 2000 ? 'slow' : 'available' : 'unavailable',
@@ -124,12 +124,14 @@ export function projectOperations(github, tencent) {
 
   const build = new Map(projects.filter(item => item.repo).map(project => [project.id, cache(async () => {
     const prefix = '/repos/' + githubOwner + '/' + project.repo;
-    const branch = project.id === 'hub' ? '&branch=main' : '';
+    const runsPath = project.id === 'hub'
+      ? '/actions/workflows/yaoxi-hub.yml/runs?per_page=10&branch=main'
+      : '/actions/runs?per_page=10';
     const [actions, release] = await Promise.allSettled([
-      github(prefix + '/actions/runs?per_page=10' + branch), github(prefix + '/releases?per_page=10')
+      github(prefix + runsPath), github(prefix + '/releases?per_page=10')
     ]);
     const runs = actions.status === 'fulfilled' && Array.isArray(actions.value.workflow_runs)
-      ? actions.value.workflow_runs.filter(run => project.id !== 'hub' || run.name === 'YaoXi Hub CI') : null;
+      ? actions.value.workflow_runs : null;
     const releases = release.status === 'fulfilled' && Array.isArray(release.value)
       ? release.value.filter(item => !item.draft && (project.id !== 'hub' || item.tag_name.startsWith('yaoxi-hub-v'))) : null;
     const failed = runs?.find(run => run.conclusion === 'failure');

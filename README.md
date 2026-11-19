@@ -2,11 +2,11 @@
 
 | 项目 | 源码 | 构建与部署 |
 | --- | --- | --- |
-| Yaoxi Hub Android | [`android/hub`](android/hub) | [Hub CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/yaoxi-hub.yml) · [Hub APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/tag/yaoxi-hub-v0.7.0) |
+| Yaoxi Hub Android | [`android/hub`](android/hub) | [Hub CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/yaoxi-hub.yml) · [Hub APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases?q=yaoxi-hub-v) |
 | Yaoxi Hub API | [`hub-api`](hub-api) | [自建部署文档](hub-api/README.md) |
 | 抖音 / B站 下载器 | [Android 模块](android/app) · [Web 和 CLI](#网页版推荐) · [Workers](worker) | [下载器 CI](https://github.com/yaoxiovo/douyin-bilibili-downloader/actions/workflows/build-apk.yml) · [下载器 APK](https://github.com/yaoxiovo/douyin-bilibili-downloader/releases/latest) |
 
-APK 由 GitHub Actions 远端构建。Hub 使用 `yaoxi-hub-v*` 标签，从 `android/hub/build.gradle` 读取 `versionName`。更新版本号并提交到 `main`，且独立 API 检查与 Android 构建都通过后，工作流会自动发布新版本号对应的 APK。下载器的正式版本使用 `v*` 标签。两个工作流分别上传各自的 APK。 Hub 的 Vue 界面使用 Fuxsto Design Pro，GitHub Actions 先打包界面资源，再打包 APK。
+APK 由 GitHub Actions 远端构建。Hub 使用 `yaoxi-hub-v*` 标签，从 `android/hub/build.gradle` 读取 `versionName`。更新版本号并提交到 `main` 后，工作流始终提供调试 APK 构建产物。配置 GitHub Actions Secrets `HUB_KEYSTORE_BASE64`、`HUB_KEYSTORE_PASSWORD`、`HUB_KEY_ALIAS`、`HUB_KEY_PASSWORD` 后，工作流会在 API 检查和签名构建通过时发布正式签名 APK。同一包名需要持续使用同一签名，已安装的旧版调试 APK 要先卸载才能安装正式签名版。下载器的正式版本使用 `v*` 标签。两个工作流分别上传各自的 APK。 Hub 的 Vue 界面使用 Fuxsto Design Pro，GitHub Actions 先打包界面资源，再打包 APK。
 
 ## 快捷爬取 · 抖音 / B站 源视频下载工具
 

@@ -2,7 +2,25 @@ plugins {
     id 'com.android.application'
 }
 
+def releaseKeystore = System.getenv('HUB_KEYSTORE_FILE')
+
 android {
+    if (releaseKeystore) {
+        signingConfigs {
+            release {
+                storeFile file(releaseKeystore)
+                storePassword System.getenv('HUB_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('HUB_KEY_ALIAS')
+                keyPassword System.getenv('HUB_KEY_PASSWORD')
+            }
+        }
+        buildTypes {
+            release {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
     namespace 'com.yaoxiovo.hub'
     compileSdk 34
 
@@ -10,8 +28,8 @@ android {
         applicationId 'com.yaoxiovo.hub'
         minSdk 26
         targetSdk 34
-        versionCode 7
-        versionName '0.7.0'
+        versionCode 8
+        versionName '0.7.1'
     }
 
     sourceSets {

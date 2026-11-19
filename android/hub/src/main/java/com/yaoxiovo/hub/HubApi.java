@@ -12,6 +12,15 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 final class HubApi {
+    static final class HttpError extends IOException {
+        final int status;
+
+        HttpError(int status, String message) {
+            super(message);
+            this.status = status;
+        }
+    }
+
     static JSONObject publicRepositories(int offset) throws Exception {
         URI url = URI.create("https://api.github.com/users/yaoxiovo/repos?per_page=100&page=" + (offset / 100 + 1));
         JSONArray source = new JSONArray(request(url, null, null));
@@ -24,7 +33,7 @@ final class HubApi {
     }
 
     static JSONObject publicMessages() throws Exception {
-        URI url = URI.create("https://api.github.com/repos/yaoxiovo/douyin-bilibili-downloader/actions/runs?per_page=10");
+        URI url = URI.create("https://api.github.com/repos/yaoxiovo/douyin-bilibili-downloader/actions/workflows/yaoxi-hub.yml/runs?per_page=10&branch=main");
         JSONArray source = new JSONObject(request(url, null, null)).getJSONArray("workflow_runs");
         JSONArray items = new JSONArray();
         for (int i = 0; i < source.length(); i++) {
@@ -90,7 +99,7 @@ final class HubApi {
             if (!success) {
                 String message = "接口 HTTP " + status;
                 try { message = new JSONObject(text).optString("error", message); } catch (JSONException ignored) {}
-                throw new IOException(message);
+                throw new HttpError(status, message);
             }
             return text;
         } finally {

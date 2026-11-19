@@ -18,12 +18,13 @@ Android「工作台」和「消息」可以直接调用公开 GitHub API。启�
 | `HUB_UMAMI_SHARE_ID` | 博客 Umami 的只读共享配置，用于读取近 7 天聚合流量 |
 | `HUB_BING_API_KEY` | Bing Webmaster API 密钥，用于读取绑定站点的点击和展示统计 |
 | `HUB_BLOG_ADMIN_TOKEN` | 私有。博客待审评论读取与通过、拒绝操作使用的后台授权 |
+| `HUB_STATE_DIR` | 会话和云操作消息的私有持久化目录，使用 systemd 时也可设置 `StateDirectory=yaoxi-hub` 和 `StateDirectoryMode=0700` |
 | `HOST`、`PORT` | 默认监听 `127.0.0.1:8788` |
 
 DNSPod 使用 `DescribeDomainList`、`DescribeRecordLineList`、`DescribeRecordList`、`CreateRecord`、`ModifyRecord`、`ModifyRecordStatus`。EdgeOne 使用 `DescribeZones`、`DescribeAccelerationDomains`、`DescribeDnsRecords`、`CreateDnsRecord`、`ModifyDnsRecords`、`ModifyDnsRecordsStatus`、`CreatePurgeTask` 和 `DescribePurgeTasks`。实际写入以专用账号权限为准。
 
-在 `hub-api` 目录运行 `npm start` 启动服务。生产环境可用进程管理器从同一目录执行该命令，并在 HTTPS 反向代理上转发到本机端口。完成服务端配置后，在 Android「我的 → 账号统一中心 → Hub API 地址」填写相同的 HTTPS 源，然后使用系统浏览器登录。登录步骤使用一次性配对，Android 只接收临时 Hub 会话。会话和最近 50 条云操作消息保存在服务进程中，重启后需要重新登录，腾讯云任务历史仍从腾讯云读取。
+在 `hub-api` 目录运行 `npm start` 启动服务。生产环境可用进程管理器从同一目录执行该命令，并在 HTTPS 反向代理上转发到本机端口。完成服务端配置后，在 Android「我的 → 账号统一中心 → Hub API 地址」填写相同的 HTTPS 源，然后使用系统浏览器登录。登录步骤使用一次性配对，Android 只接收临时 Hub 会话。配置持久化目录后，已登录会话和最近 50 条云操作消息可以跨服务重启保留。目录应由服务用户独占读写，并放在发布目录之外。未配置时使用内存数据库。正在进行的一次性登录配对在重启后需要重试，腾讯云任务历史仍从腾讯云读取。
 
 ## 检查
 
-GitHub Actions 的 Hub CI 先运行 `npm run check`。访问 `/auth/callback` 应返回完成登录的页面。未登录请求 `POST /api/account` 应返回 HTTP 401。使用已配置的安卓客户端登录后，应能看到账号和服务配置状态。建议先核对只读查询，再在预先选定的记录和 URL 上验证写入。
+GitHub Actions 的 Hub CI 先运行 `npm run check`，它会执行语法和行为测试。访问 `/auth/callback` 应返回完成登录的页面。未登录请求 `POST /api/account` 应返回 HTTP 401。使用已配置的安卓客户端登录后，应能看到账号和服务配置状态。建议先核对只读查询，再在预先选定的记录和 URL 上验证写入。
