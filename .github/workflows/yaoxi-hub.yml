@@ -59,6 +59,17 @@ jobs:
           java-version: '17'
           distribution: temurin
           cache: gradle
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: android/hub/ui/.node-version
+          cache: npm
+          cache-dependency-path: android/hub/ui/package-lock.json
+      - name: Install Hub UI dependencies
+        working-directory: android/hub/ui
+        run: npm ci --ignore-scripts
+      - name: Bundle Fuxsto Hub UI
+        working-directory: android/hub/ui
+        run: npm run build
       - id: version
         name: Read Hub version
         shell: bash

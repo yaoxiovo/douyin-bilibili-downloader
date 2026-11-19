@@ -1,8 +1,5 @@
 package com.yaoxiovo.hub;
 
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -52,41 +49,6 @@ final class HubApi {
 
     static JSONObject publicFeed(String origin, String path) throws Exception {
         return new JSONObject(request(URI.create(origin + path), null, null));
-    }
-
-    static Bitmap wallpaper(String address) throws IOException {
-        URI uri = URI.create(address);
-        if (!"https".equals(uri.getScheme()) || !"download.yaoxi.wiki".equals(uri.getHost()) ||
-                uri.getUserInfo() != null || uri.getPort() != -1 ||
-                !uri.getPath().matches("/media/[a-f0-9-]{36}")) throw new IOException("无效的壁纸地址");
-        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
-        try {
-            connection.setInstanceFollowRedirects(false);
-            connection.setConnectTimeout(7000);
-            connection.setReadTimeout(7000);
-            if (connection.getResponseCode() != 200 || connection.getContentType() == null ||
-                    !connection.getContentType().startsWith("image/")) throw new IOException("壁纸暂不可用");
-            ByteArrayOutputStream payload = new ByteArrayOutputStream();
-            try (InputStream stream = connection.getInputStream()) {
-                byte[] buffer = new byte[8192];
-                for (int count; (count = stream.read(buffer)) != -1; ) {
-                    payload.write(buffer, 0, count);
-                    if (payload.size() > 1_500_000) throw new IOException("壁纸预览文件过大");
-                }
-            }
-            byte[] image = payload.toByteArray();
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inJustDecodeBounds = true;
-            BitmapFactory.decodeByteArray(image, 0, image.length, options);
-            int size = Math.max(options.outWidth, options.outHeight);
-            if (size <= 0 || size > 16000) throw new IOException("壁纸预览尺寸无效");
-            options.inSampleSize = 1;
-            while (size / options.inSampleSize > 850) options.inSampleSize *= 2;
-            options.inJustDecodeBounds = false;
-            return BitmapFactory.decodeByteArray(image, 0, image.length, options);
-        } finally {
-            connection.disconnect();
-        }
     }
 
     static JSONObject send(String origin, String path, String token, JSONObject data) throws Exception {

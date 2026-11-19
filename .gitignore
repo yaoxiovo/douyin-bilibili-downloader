@@ -20,3 +20,6 @@ output_apks/
 !.env.example
 *.jks
 *.keystore
+
+# Hub UI is bundled by CI
+/android/hub/ui/dist/

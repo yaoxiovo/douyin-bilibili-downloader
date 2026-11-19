@@ -1,0 +1,18 @@
+{
+  "name": "yaoxi-hub-ui",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.18 <23" },
+  "scripts": {
+    "build": "vite build && node -e \"require('node:fs').copyFileSync('node_modules/fuxsto-design-pro/LICENSE', 'dist/FUXSTO-LICENSE.txt')\""
+  },
+  "dependencies": {
+    "fuxsto-design-pro": "0.1.2",
+    "lucide-vue-next": "1.0.0",
+    "vue": "3.5.40"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "5.2.4",
+    "vite": "6.4.1"
+  }
+}

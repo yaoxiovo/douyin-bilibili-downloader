@@ -2,7 +2,6 @@ package com.yaoxiovo.hub;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Typeface;
 import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Bundle;
@@ -30,7 +29,7 @@ public final class HubBrowserActivity extends Activity {
     private static final String HISTORY = "browserHistory";
 
     private WebView webView;
-    private TextView address;
+    private WebView toolbar;
     private TextView error;
     private ProgressBar progress;
     private String lastUrl;
@@ -49,7 +48,13 @@ public final class HubBrowserActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(PAPER);
-        root.addView(toolbar(), new LinearLayout.LayoutParams(-1, -2));
+        try {
+            toolbar = createToolbar();
+            root.addView(toolbar, new LinearLayout.LayoutParams(-1, dp(59)));
+        } catch (RuntimeException unavailable) {
+            finish();
+            return;
+        }
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setMax(100);
         progress.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_NONE);
@@ -83,31 +88,28 @@ public final class HubBrowserActivity extends Activity {
         showAddress(lastUrl);
     }
 
-    private LinearLayout toolbar() {
-        LinearLayout bar = new LinearLayout(this);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(6), dp(4), dp(6), dp(4));
-        bar.addView(control("‹", "返回上一页", this::goBack));
-        address = label("", 14, INK);
-        address.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        address.setSingleLine();
-        address.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        address.setGravity(Gravity.CENTER);
-        bar.addView(address, new LinearLayout.LayoutParams(0, -2, 1));
-        bar.addView(control("↻", "刷新网页", this::refresh));
-        bar.addView(control("×", "关闭网页", this::finish));
-        return bar;
-    }
-
-    private TextView control(String glyph, String description, Runnable action) {
-        TextView view = label(glyph, 24, ACCENT);
-        view.setGravity(Gravity.CENTER);
-        view.setMinWidth(dp(48));
-        view.setMinHeight(dp(48));
-        view.setContentDescription(description);
-        view.setFocusable(true);
-        view.setOnClickListener(ignored -> action.run());
-        return view;
+    private WebView createToolbar() {
+        WebView surface = HubUiWebView.create(this, (view, message, origin, mainFrame, reply) -> {
+            int id = 0;
+            try {
+                org.json.JSONObject input = new org.json.JSONObject(message.getData());
+                id = input.getInt("id");
+                String method = input.getString("method");
+                org.json.JSONObject result = HubApi.object();
+                switch (method) {
+                    case "address" -> result = HubApi.object("host", Uri.parse(lastUrl).getHost());
+                    case "back" -> goBack();
+                    case "refresh" -> refresh();
+                    case "close" -> finish();
+                    default -> throw new IllegalArgumentException();
+                }
+                reply.postMessage(HubApi.object("id", id, "value", result).toString());
+            } catch (Exception error) {
+                reply.postMessage(HubApi.object("id", id, "error", "浏览器操作不可用").toString());
+            }
+        });
+        HubUiWebView.load(surface, "browser.html");
+        return surface;
     }
 
     private TextView label(String value, int size, int color) {
@@ -184,7 +186,9 @@ public final class HubBrowserActivity extends Activity {
 
     private void showAddress(String url) {
         Uri location = Uri.parse(url);
-        if (isHttps(location)) address.setText(location.getHost());
+        if (isHttps(location) && toolbar != null) {
+            toolbar.evaluateJavascript("window.dispatchEvent(new Event('hub-browser-address'))", null);
+        }
     }
 
     private void showError(String message) {
@@ -226,6 +230,11 @@ public final class HubBrowserActivity extends Activity {
             ((ViewGroup) webView.getParent()).removeView(webView);
             webView.destroy();
             webView = null;
+        }
+        if (toolbar != null) {
+            ((ViewGroup) toolbar.getParent()).removeView(toolbar);
+            toolbar.destroy();
+            toolbar = null;
         }
         super.onDestroy();
     }
